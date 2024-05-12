@@ -1,0 +1,10 @@
+# https://docs-babylon.radixdlt.com/main/scrypto/toolchain/install-scrypto.html
+# https://yegeun542.github.io/rust-edition-guide-ko/rust-2018/rustup-for-managing-rust-versions.html#managing-versions
+# https://stackoverflow.com/questions/58226545/how-to-switch-between-rust-toolchains
+
+# https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file
+
+[toolchain]
+# channel = "1.70"
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"
