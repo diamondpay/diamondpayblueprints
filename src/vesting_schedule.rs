@@ -21,13 +21,7 @@ impl VestingSchedule {
         vest_interval: i64,
         amount: Decimal,
     ) -> Self {
-        Self::check_schedule(
-            &start_epoch,
-            &cliff_epoch,
-            &end_epoch,
-            &vest_interval,
-            &amount,
-        );
+        Self::check_schedule(&start_epoch, &cliff_epoch, &end_epoch, &vest_interval);
 
         Self {
             start_epoch,
@@ -85,7 +79,6 @@ impl VestingSchedule {
         cliff_epoch: &Option<i64>,
         end_epoch: &i64,
         vest_interval: &i64,
-        amount: &Decimal,
     ) {
         match cliff_epoch {
             Some(c_epoch) => assert!(
@@ -98,7 +91,6 @@ impl VestingSchedule {
             ),
         };
         assert!(vest_interval > &0i64, "[Check Schedule]: No Interval");
-        assert!(amount > &dec!("0"), "[Check Schedule]: No Amount");
     }
 
     pub fn get_curr_epoch() -> i64 {

@@ -20,6 +20,7 @@ mod job_contract {
             remove => restrict_to: [admin, SELF];
             leave => PUBLIC;
             join => PUBLIC;
+            deposit => restrict_to: [admin];
             withdraw => PUBLIC;
             cancellation => restrict_to: [admin];
         }
@@ -50,24 +51,17 @@ mod job_contract {
             contract_name: String,
             admin_badge: ResourceAddress,
             admin_proof: NonFungibleProof,
-            funds: FungibleBucket,
+            resource_address: ResourceAddress,
             start_epoch: i64,
             cliff_epoch: Option<i64>,
             end_epoch: i64,
             vest_interval: i64,
         ) -> (Global<JobContract>, NonFungibleBucket) {
-            Self::check_funds(&funds);
-            let funds_address = funds.resource_address();
             let admin_handle = Self::get_proof_id(&admin_badge, admin_proof);
             let badge_manager = BadgeManager::new("Job".to_string(), contract_name.clone());
 
-            let vesting_schedule = VestingSchedule::new(
-                start_epoch,
-                cliff_epoch,
-                end_epoch,
-                vest_interval,
-                funds.amount(),
-            );
+            let vesting_schedule =
+                VestingSchedule::new(start_epoch, cliff_epoch, end_epoch, vest_interval, dec!(0));
 
             let component = Self {
                 badge_manager,
@@ -78,9 +72,9 @@ mod job_contract {
                 admin_handle,
                 member_badges: HashMap::new(),
                 signatures: HashSet::new(),
-                funds: FungibleVault::with_bucket(funds),
+                funds: FungibleVault::new(resource_address),
                 vesting_schedule,
-                reserved: FungibleVault::new(funds_address),
+                reserved: FungibleVault::new(resource_address),
                 is_cancelled: false,
                 created_epoch: Decimal::from(VestingSchedule::get_curr_epoch()),
             }
@@ -218,6 +212,23 @@ mod job_contract {
             member_bucket
         }
 
+        pub fn deposit(&mut self, funds: FungibleBucket) {
+            Self::check_funds(&funds);
+
+            // CREATE TXS
+            self.create_tx(
+                self.admin_handle.clone(),
+                self.admin_badge,
+                self.contract_handle.clone(),
+                self.badge_manager.badge(),
+                funds.amount(),
+                TxType::Deposit,
+            );
+
+            self.vesting_schedule.amount = self.vesting_schedule.amount + funds.amount();
+            self.funds.put(funds);
+        }
+
         pub fn withdraw(
             &mut self,
             member_badge: ResourceAddress,
@@ -270,7 +281,7 @@ mod job_contract {
         // // Private Funcs
 
         fn set_reserved(&mut self) {
-            if self.is_cancelled {
+            if self.is_cancelled || self.vesting_schedule.amount == dec!(0) {
                 return;
             }
             // Withdraw amount is the difference between the funds

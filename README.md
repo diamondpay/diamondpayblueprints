@@ -36,8 +36,9 @@ Open source. No fees.
 
 ## Scrypto Update
 
-- `git pull`
-- `cargo install --path ./simulator`
+- `cargo install --list`
+- `cargo uninstall radix-clis`
+- `cargo install --force radix-clis`
 
 ## Scripts
 

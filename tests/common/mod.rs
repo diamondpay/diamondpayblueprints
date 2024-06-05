@@ -1,6 +1,4 @@
-use scrypto::this_package;
 use scrypto_test::prelude::*;
-use scrypto_unit::*;
 
 #[derive(Clone)]
 pub struct MemberData {
@@ -19,7 +17,7 @@ pub struct TestSetup {
 }
 
 fn create_env() -> (
-    TestRunner<NoExtension, InMemorySubstateDatabase>,
+    LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     PackageAddress,
 ) {
     // Test job contract by setting initial time
@@ -30,8 +28,8 @@ fn create_env() -> (
     // Wed Sep 20 2023
     config.initial_time_ms = 1695236716000i64;
     // Setup the environment
-    let mut test_runner = TestRunnerBuilder::new()
-        .without_trace()
+    let mut test_runner = LedgerSimulatorBuilder::new()
+        .without_kernel_trace()
         .with_custom_genesis(config)
         .build();
     // Publish package
@@ -40,7 +38,7 @@ fn create_env() -> (
 }
 
 fn create_member(
-    test_runner: &mut TestRunner<NoExtension, InMemorySubstateDatabase>,
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     handle: &str,
 ) -> MemberData {
     // Create an account
@@ -66,7 +64,10 @@ fn create_member(
     member_data
 }
 
-pub fn setup_test() -> (TestRunner<NoExtension, InMemorySubstateDatabase>, TestSetup) {
+pub fn setup_test() -> (
+    LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
+    TestSetup,
+) {
     let (mut test_runner, package_address) = create_env();
     let admin = create_member(&mut test_runner, "handle_1");
     let member = create_member(&mut test_runner, "handle_2");

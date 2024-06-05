@@ -1,17 +1,16 @@
-use diamondpay::project_contract::test_bindings::*;
+use diamondpay::project_contract::project_contract_test::ProjectContractState;
 use scrypto_test::prelude::*;
-use scrypto_unit::*;
-use transaction::builder::ManifestBuilder;
 mod common;
 
 fn create_project(
-    test_runner: &mut TestRunner<NoExtension, InMemorySubstateDatabase>,
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     package_address: PackageAddress,
     admin: common::MemberData,
     resource_address: ResourceAddress,
 ) -> ComponentAddress {
     let public_key = admin.public_key;
     let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
         .create_proof_from_account_of_non_fungibles(
             admin.account_address,
             admin.resource_address,
@@ -39,7 +38,7 @@ fn create_project(
             manifest_args!(ManifestExpression::EntireWorktop),
         )
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)],
     );
@@ -49,7 +48,7 @@ fn create_project(
 }
 
 fn project_test(
-    test_runner: &mut TestRunner<NoExtension, InMemorySubstateDatabase>,
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     member: common::MemberData,
     project_address: ComponentAddress,
     method_name: &str,
@@ -57,6 +56,7 @@ fn project_test(
 ) {
     let public_key = member.public_key;
     let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
         .create_proof_from_account_of_non_fungibles(
             member.account_address,
             member.resource_address,
@@ -64,7 +64,7 @@ fn project_test(
         )
         .call_method(project_address, method_name, args)
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)],
     );
@@ -72,12 +72,13 @@ fn project_test(
 }
 
 fn project_leave(
-    test_runner: &mut TestRunner<NoExtension, InMemorySubstateDatabase>,
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     member: common::MemberData,
     project_address: ComponentAddress,
 ) {
     let public_key = member.public_key;
     let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
         .create_proof_from_account_of_non_fungibles(
             member.account_address,
             member.resource_address,
@@ -88,7 +89,7 @@ fn project_leave(
             (member.resource_address, lookup.proof("proof"))
         })
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)],
     );
@@ -96,12 +97,13 @@ fn project_leave(
 }
 
 fn project_join(
-    test_runner: &mut TestRunner<NoExtension, InMemorySubstateDatabase>,
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     member: common::MemberData,
     project_address: ComponentAddress,
 ) {
     let public_key = member.public_key;
     let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
         .create_proof_from_account_of_non_fungibles(
             member.account_address,
             member.resource_address,
@@ -117,7 +119,7 @@ fn project_join(
             manifest_args!(ManifestExpression::EntireWorktop),
         )
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)],
     );
@@ -125,7 +127,7 @@ fn project_join(
 }
 
 fn project_deposit(
-    test_runner: &mut TestRunner<NoExtension, InMemorySubstateDatabase>,
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     member: common::MemberData,
     resource_address: ResourceAddress,
     amount: Decimal,
@@ -133,6 +135,7 @@ fn project_deposit(
 ) {
     let public_key = member.public_key;
     let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
         .create_proof_from_account_of_non_fungibles(
             member.account_address,
             member.resource_address,
@@ -148,7 +151,7 @@ fn project_deposit(
             (lookup.bucket("bucket1"),)
         })
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)],
     );
@@ -156,12 +159,13 @@ fn project_deposit(
 }
 
 fn project_cancellation(
-    test_runner: &mut TestRunner<NoExtension, InMemorySubstateDatabase>,
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     member: common::MemberData,
     project_address: ComponentAddress,
 ) {
     let public_key = member.public_key;
     let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
         .create_proof_from_account_of_non_fungibles(
             member.account_address,
             member.resource_address,
@@ -174,7 +178,7 @@ fn project_cancellation(
             manifest_args!(ManifestExpression::EntireWorktop),
         )
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)],
     );
@@ -182,12 +186,13 @@ fn project_cancellation(
 }
 
 fn project_withdraw(
-    test_runner: &mut TestRunner<NoExtension, InMemorySubstateDatabase>,
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     member: common::MemberData,
     project_address: ComponentAddress,
 ) {
     let public_key = member.public_key;
     let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
         .create_proof_from_account_of_non_fungibles(
             member.account_address,
             member.resource_address,
@@ -203,7 +208,7 @@ fn project_withdraw(
             manifest_args!(ManifestExpression::EntireWorktop),
         )
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)],
     );
