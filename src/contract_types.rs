@@ -1,8 +1,8 @@
 use scrypto::prelude::*;
 
 // DAPP_ACCOUNT needs to be updated before deploy
-pub const DAPP_URL: &str = "https://beta.launchspace.app";
-pub const ICON_URL: &str = "https://beta.launchspace.app/icon.png";
+pub const INFO_URL: &str = "https://github.com/diamondpay";
+pub const ICON_URL: &str = "https://avatars.githubusercontent.com/u/162780104";
 
 #[derive(NonFungibleData, ScryptoSbor)]
 pub struct BadgeData {

@@ -88,7 +88,7 @@ mod project_contract {
                 init {
                     "name" => "Diamond Pay: Project Contract", locked;
                     "description" => "Reward members using objectives", locked;
-                    "info_url" => Url::of(DAPP_URL), locked;
+                    "info_url" => Url::of(INFO_URL), locked;
                     "dapp_definition" => Self::dapp_address(), locked;
                 }
             })

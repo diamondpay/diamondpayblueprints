@@ -87,7 +87,7 @@ mod job_contract {
                 init {
                     "name" => "Diamond Pay: Job Contract", locked;
                     "description" => "Reward a member using a vesting schedule", locked;
-                    "info_url" => Url::of(DAPP_URL), locked;
+                    "info_url" => Url::of(INFO_URL), locked;
                     "dapp_definition" => Self::dapp_address(), locked;
                 }
             })

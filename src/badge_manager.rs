@@ -144,17 +144,13 @@ mod badge_manager {
                       "description" => description, locked;
                       "tags" => ["badge"], locked;
                       "icon_url" => Url::of(ICON_URL), locked;
-                      "info_url" => Url::of(DAPP_URL), locked;
+                      "info_url" => Url::of(INFO_URL), locked;
                       "dapp_definitions" => [Self::dapp_address()], locked;
                     }
                 })
                 .mint_roles(mint_roles! {
                     minter => access_rule.clone();
                     minter_updater => rule!(deny_all);
-                })
-                .withdraw_roles(withdraw_roles! {
-                    withdrawer => access_rule.clone();
-                    withdrawer_updater => rule!(deny_all);
                 })
         }
 
@@ -169,18 +165,14 @@ mod badge_manager {
                       "name" => name, locked;
                       "description" => description, locked;
                       "tags" => ["badge"], locked;
-                      "key_image_url" => Url::of(ICON_URL), locked;
-                      "info_url" => Url::of(DAPP_URL), locked;
+                      "icon_url" => Url::of(ICON_URL), locked;
+                      "info_url" => Url::of(INFO_URL), locked;
                       "dapp_definitions" => [Self::dapp_address()], locked;
                     }
                 })
                 .mint_roles(mint_roles! {
                     minter => access_rule.clone();
                     minter_updater => rule!(deny_all);
-                })
-                .withdraw_roles(withdraw_roles! {
-                    withdrawer => access_rule.clone();
-                    withdrawer_updater => rule!(deny_all);
                 })
                 .non_fungible_data_update_roles(non_fungible_data_update_roles! {
                     non_fungible_data_updater => access_rule.clone();
