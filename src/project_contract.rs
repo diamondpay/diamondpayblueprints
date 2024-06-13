@@ -45,6 +45,7 @@ mod project_contract {
         completed: HashMap<Decimal, HashMap<ResourceAddress, Decimal>>,
         reserved: HashMap<ResourceAddress, FungibleVault>,
         is_cancelled: bool,
+        cancelled_epoch: Decimal,
         created_epoch: Decimal,
     }
 
@@ -77,6 +78,7 @@ mod project_contract {
                 completed: HashMap::new(),
                 reserved: HashMap::new(),
                 is_cancelled: false,
+                cancelled_epoch: dec!(0),
                 created_epoch: Self::get_curr_epoch(),
             }
             .instantiate()
@@ -341,6 +343,7 @@ mod project_contract {
         pub fn cancellation(&mut self) -> FungibleBucket {
             self.objectives = HashMap::new();
             self.is_cancelled = true;
+            self.cancelled_epoch = Self::get_curr_epoch();
             let total = self.funds.take_all();
 
             // CREATE TXS
