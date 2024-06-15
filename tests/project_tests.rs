@@ -29,6 +29,7 @@ fn create_project(
                     admin.resource_address,
                     lookup.proof("proof"),
                     resource_address,
+                    admin.account_address,
                 )
             },
         )

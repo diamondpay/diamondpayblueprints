@@ -5,11 +5,6 @@ use scrypto::prelude::*;
 
 #[blueprint]
 mod job_contract {
-    const DAPP_ACCOUNT: Global<Account> = global_component!(
-        Account,
-        "account_tdx_2_12893a32aeygqc4667dws2xfa30rr80lmd9z7lmu9x0fcxv2ckh460z"
-    );
-
     enable_method_auth! {
         roles {
             admin => updatable_by: [];
@@ -52,16 +47,24 @@ mod job_contract {
             admin_badge: ResourceAddress,
             admin_proof: NonFungibleProof,
             resource_address: ResourceAddress,
+            dapp_address: ComponentAddress,
             start_epoch: i64,
             cliff_epoch: Option<i64>,
             end_epoch: i64,
             vest_interval: i64,
+            is_check_join: bool,
         ) -> (Global<JobContract>, NonFungibleBucket) {
             let admin_handle = Self::get_proof_id(&admin_badge, admin_proof);
             let badge_manager = BadgeManager::new("Job".to_string(), contract_name.clone());
 
-            let vesting_schedule =
-                VestingSchedule::new(start_epoch, cliff_epoch, end_epoch, vest_interval, dec!(0));
+            let vesting_schedule = VestingSchedule::new(
+                start_epoch,
+                cliff_epoch,
+                end_epoch,
+                vest_interval,
+                dec!(0),
+                is_check_join,
+            );
 
             let component = Self {
                 badge_manager,
@@ -88,7 +91,7 @@ mod job_contract {
                     "name" => "Diamond Pay: Job Contract", locked;
                     "description" => "Reward a member using a vesting schedule", locked;
                     "info_url" => Url::of(INFO_URL), locked;
-                    "dapp_definition" => Self::dapp_address(), locked;
+                    "dapp_definition" => GlobalAddress::from(dapp_address), locked;
                 }
             })
             .globalize();
@@ -355,10 +358,6 @@ mod job_contract {
                 "[Check Funds]: Must be Fungible"
             );
             assert!(!funds.is_empty(), "[Check Funds]: Missing Funds");
-        }
-
-        fn dapp_address() -> GlobalAddress {
-            GlobalAddress::from(DAPP_ACCOUNT.address())
         }
     }
 }

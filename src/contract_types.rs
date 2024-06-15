@@ -1,6 +1,5 @@
 use scrypto::prelude::*;
 
-// DAPP_ACCOUNT needs to be updated before deploy
 pub const INFO_URL: &str = "https://github.com/diamondpay";
 pub const ICON_URL: &str = "https://avatars.githubusercontent.com/u/162780104";
 

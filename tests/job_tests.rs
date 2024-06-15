@@ -29,10 +29,12 @@ fn create_job(
                 admin.resource_address,
                 lookup.proof("proof"),
                 resource_address,
+                admin.account_address,
                 start,
                 cliff,
                 end,
                 interval,
+                false,
             )
         })
         .call_method(
@@ -217,7 +219,6 @@ fn job_deposit(
     receipt.expect_commit_success();
 }
 
-// Comment out check_join() in order to test vesting
 #[test]
 fn test_members() {
     let (mut test_runner, app) = common::setup_test();
@@ -274,7 +275,6 @@ fn test_members() {
     job_leave(&mut test_runner, app.member.clone(), job_address);
 }
 
-// Comment out check_join() in order to test vesting
 #[test]
 fn test() {
     let (mut test_runner, app) = common::setup_test();

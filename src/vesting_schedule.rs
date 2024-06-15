@@ -11,6 +11,7 @@ pub struct VestingSchedule {
     pub amount: Decimal,
     pub withdrawn: Decimal,
     pub cancel_epoch: Option<i64>,
+    pub is_check_join: bool,
 }
 
 impl VestingSchedule {
@@ -20,6 +21,7 @@ impl VestingSchedule {
         end_epoch: i64,
         vest_interval: i64,
         amount: Decimal,
+        is_check_join: bool,
     ) -> Self {
         Self::check_schedule(&start_epoch, &cliff_epoch, &end_epoch, &vest_interval);
 
@@ -31,6 +33,7 @@ impl VestingSchedule {
             amount,
             withdrawn: dec!(0),
             cancel_epoch: None,
+            is_check_join,
         }
     }
 
@@ -68,10 +71,12 @@ impl VestingSchedule {
     }
 
     pub fn check_join(&self) {
-        assert!(
-            self.start_epoch >= Self::get_curr_epoch(),
-            "[Check Join]: Past start date"
-        )
+        if self.is_check_join {
+            assert!(
+                self.start_epoch >= Self::get_curr_epoch(),
+                "[Check Join]: Past start date"
+            )
+        }
     }
 
     pub fn check_schedule(

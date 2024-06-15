@@ -4,12 +4,6 @@ use scrypto::prelude::*;
 #[blueprint]
 #[types(BadgeData, TxData)]
 mod badge_manager {
-    // dApp definition address used by ft_builder and nft_builder
-    const DAPP_ACCOUNT: Global<Account> = global_component!(
-        Account,
-        "account_tdx_2_12893a32aeygqc4667dws2xfa30rr80lmd9z7lmu9x0fcxv2ckh460z"
-    );
-
     struct BadgeManager {
         auth: FungibleVault,            // internal auth badge used for minting fts & nfts
         admin_manager: ResourceManager, // ResourceManager to mint admin nft with contract data
@@ -145,7 +139,6 @@ mod badge_manager {
                       "tags" => ["badge"], locked;
                       "icon_url" => Url::of(ICON_URL), locked;
                       "info_url" => Url::of(INFO_URL), locked;
-                      "dapp_definitions" => [Self::dapp_address()], locked;
                     }
                 })
                 .mint_roles(mint_roles! {
@@ -167,7 +160,6 @@ mod badge_manager {
                       "tags" => ["badge"], locked;
                       "icon_url" => Url::of(ICON_URL), locked;
                       "info_url" => Url::of(INFO_URL), locked;
-                      "dapp_definitions" => [Self::dapp_address()], locked;
                     }
                 })
                 .mint_roles(mint_roles! {
@@ -190,10 +182,6 @@ mod badge_manager {
             let instant = Clock::current_time(TimePrecision::Second);
             let date = UtcDateTime::from_instant(&instant).unwrap();
             Decimal::from(date.year())
-        }
-
-        fn dapp_address() -> GlobalAddress {
-            GlobalAddress::from(DAPP_ACCOUNT.address())
         }
     }
 }

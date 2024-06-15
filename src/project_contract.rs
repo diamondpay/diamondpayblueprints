@@ -4,11 +4,6 @@ use scrypto::prelude::*;
 
 #[blueprint]
 mod project_contract {
-    const DAPP_ACCOUNT: Global<Account> = global_component!(
-        Account,
-        "account_tdx_2_12893a32aeygqc4667dws2xfa30rr80lmd9z7lmu9x0fcxv2ckh460z"
-    );
-
     enable_method_auth! {
         roles {
             admin => updatable_by: [];
@@ -57,6 +52,7 @@ mod project_contract {
             admin_badge: ResourceAddress,
             admin_proof: NonFungibleProof,
             resource_address: ResourceAddress,
+            dapp_address: ComponentAddress,
         ) -> (Global<ProjectContract>, NonFungibleBucket) {
             let admin_handle = Self::get_proof_id(&admin_badge, admin_proof);
             let badge_manager = BadgeManager::new("Project".to_string(), contract_name.clone());
@@ -91,7 +87,7 @@ mod project_contract {
                     "name" => "Diamond Pay: Project Contract", locked;
                     "description" => "Reward members using objectives", locked;
                     "info_url" => Url::of(INFO_URL), locked;
-                    "dapp_definition" => Self::dapp_address(), locked;
+                    "dapp_definition" => GlobalAddress::from(dapp_address), locked;
                 }
             })
             .globalize();
@@ -412,10 +408,6 @@ mod project_contract {
         fn get_curr_epoch() -> Decimal {
             let epoch = Clock::current_time(TimePrecision::Second).seconds_since_unix_epoch;
             Decimal::from(epoch)
-        }
-
-        fn dapp_address() -> GlobalAddress {
-            GlobalAddress::from(DAPP_ACCOUNT.address())
         }
     }
 }
