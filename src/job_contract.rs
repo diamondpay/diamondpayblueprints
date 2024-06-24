@@ -1,5 +1,6 @@
 use crate::badge_manager::badge_manager::BadgeManager;
 use crate::contract_types::*;
+use crate::marketplace::marketplace::Marketplace;
 use crate::vesting_schedule::VestingSchedule;
 use scrypto::prelude::*;
 
@@ -16,8 +17,11 @@ mod job_contract {
             leave => PUBLIC;
             join => PUBLIC;
             deposit => restrict_to: [admin];
+            details => restrict_to: [admin];
             withdraw => PUBLIC;
             cancellation => restrict_to: [admin];
+            list => restrict_to: [admin];
+            data => PUBLIC;
         }
     }
 
@@ -26,6 +30,9 @@ mod job_contract {
         app_handle: String,
         contract_handle: String,
         contract_name: String,
+        details: KeyValueStore<String, String>,
+        marketplace: Global<Marketplace>,
+        markets: HashSet<String>,
 
         admin_badge: ResourceAddress,
         admin_handle: String,
@@ -37,25 +44,32 @@ mod job_contract {
         reserved: FungibleVault,
         is_cancelled: bool,
         created_epoch: Decimal,
+        list_epoch: Decimal,
     }
 
     impl JobContract {
         pub fn instantiate(
+            dapp_address: ComponentAddress,
+            marketplace_address: ComponentAddress,
             app_handle: String,
             contract_handle: String,
             contract_name: String,
             admin_badge: ResourceAddress,
             admin_proof: NonFungibleProof,
             resource_address: ResourceAddress,
-            dapp_address: ComponentAddress,
             start_epoch: i64,
             cliff_epoch: Option<i64>,
             end_epoch: i64,
             vest_interval: i64,
             is_check_join: bool,
+            details: HashMap<String, String>,
         ) -> (Global<JobContract>, NonFungibleBucket) {
             let admin_handle = Self::get_proof_id(&admin_badge, admin_proof);
-            let badge_manager = BadgeManager::new("Job".to_string(), contract_name.clone());
+            let badge_manager = BadgeManager::new(JOB.to_owned(), contract_name.clone());
+            let new_details = KeyValueStore::<String, String>::new();
+            for (key, value) in details.iter() {
+                new_details.insert(key.to_owned(), value.to_owned());
+            }
 
             let vesting_schedule = VestingSchedule::new(
                 start_epoch,
@@ -71,15 +85,21 @@ mod job_contract {
                 app_handle,
                 contract_handle,
                 contract_name,
+                details: new_details,
+                marketplace: Global::<Marketplace>::from(marketplace_address),
+                markets: HashSet::new(),
+
                 admin_badge,
                 admin_handle,
                 member_badges: HashMap::new(),
                 signatures: HashSet::new(),
                 funds: FungibleVault::new(resource_address),
+
                 vesting_schedule,
                 reserved: FungibleVault::new(resource_address),
                 is_cancelled: false,
                 created_epoch: Decimal::from(VestingSchedule::get_curr_epoch()),
+                list_epoch: dec!(0),
             }
             .instantiate()
             .prepare_to_globalize(OwnerRole::None)
@@ -108,9 +128,10 @@ mod job_contract {
                 self.admin_handle.clone(),
                 BadgeData {
                     contract_address,
+                    contract_kind: ContractKind::Job,
+                    contract_role: ContractRole::Admin,
                     contract_handle: self.contract_handle.clone(),
                     app_handle: self.app_handle.clone(),
-                    member_handle: self.admin_handle.clone(),
                 },
             );
 
@@ -196,9 +217,10 @@ mod job_contract {
                 member_handle.clone(),
                 BadgeData {
                     contract_address,
+                    contract_kind: ContractKind::Job,
+                    contract_role: ContractRole::Member,
                     contract_handle: self.contract_handle.clone(),
                     app_handle: self.app_handle.clone(),
-                    member_handle: member_handle.clone(),
                 },
             );
 
@@ -216,6 +238,7 @@ mod job_contract {
         }
 
         pub fn deposit(&mut self, funds: FungibleBucket) {
+            assert!(!self.is_cancelled, "[Deposit]: Is Cancelled");
             Self::check_funds(&funds);
 
             // CREATE TXS
@@ -232,11 +255,28 @@ mod job_contract {
             self.funds.put(funds);
         }
 
+        pub fn details(&mut self, details: HashMap<String, String>) {
+            for (key, value) in details.iter() {
+                self.details.insert(key.to_owned(), value.to_owned());
+            }
+
+            // CREATE TXS
+            self.create_tx(
+                self.admin_handle.clone(),
+                self.admin_badge,
+                self.contract_handle.clone(),
+                self.badge_manager.badge(),
+                dec!(0),
+                TxType::Details,
+            );
+        }
+
         pub fn withdraw(
             &mut self,
             member_badge: ResourceAddress,
             proof: NonFungibleProof,
         ) -> FungibleBucket {
+            self.check_list();
             let member_handle = self.check_proof(&member_badge, proof);
 
             assert!(!self.signatures.is_empty(), "[Withdraw]: Not Signed");
@@ -260,6 +300,8 @@ mod job_contract {
         }
 
         pub fn cancellation(&mut self) -> FungibleBucket {
+            self.check_list();
+
             if !self.signatures.is_empty() {
                 self.set_reserved();
             }
@@ -281,7 +323,54 @@ mod job_contract {
             total
         }
 
-        // // Private Funcs
+        pub fn list(&mut self, market_name: String) {
+            self.marketplace.check_contract(
+                market_name.to_owned(),
+                ContractKind::Job,
+                Runtime::global_address(),
+                self.vesting_schedule.amount,
+                self.funds.resource_address(),
+            );
+            assert!(self.markets.len() <= MAX_MARKETS, "[List]: Reached max");
+            assert!(
+                !self.markets.contains(&market_name),
+                "[List]: Already listed"
+            );
+            self.markets.insert(market_name);
+            self.list_epoch = Decimal::from(VestingSchedule::get_curr_epoch());
+
+            // CREATE TXS
+            self.create_tx(
+                self.admin_handle.clone(),
+                self.admin_badge,
+                self.contract_handle.clone(),
+                self.badge_manager.badge(),
+                dec!(0),
+                TxType::List,
+            );
+        }
+
+        pub fn data(
+            &self,
+        ) -> (
+            ComponentAddress,
+            ResourceAddress,
+            Decimal,
+            ResourceAddress,
+            bool,
+            ComponentAddress,
+        ) {
+            (
+                self.marketplace.address(),
+                self.admin_badge,
+                self.vesting_schedule.amount,
+                self.funds.resource_address(),
+                self.member_badges.is_empty() && !self.is_cancelled,
+                Runtime::global_address(),
+            )
+        }
+
+        // Private Funcs
 
         fn set_reserved(&mut self) {
             if self.is_cancelled || self.vesting_schedule.amount == dec!(0) {
@@ -308,6 +397,14 @@ mod job_contract {
             self.vesting_schedule.cancel_epoch = Some(cancel_epoch);
         }
 
+        fn check_list(&self) {
+            assert!(
+                Decimal::from(VestingSchedule::get_curr_epoch())
+                    >= self.list_epoch + SEC_IN_DAY * 3i64,
+                "[Check List]: Must be 3 days after listing"
+            );
+        }
+
         fn check_proof(&self, member_badge: &ResourceAddress, proof: NonFungibleProof) -> String {
             let handle = Self::get_proof_id(member_badge, proof);
             let saved_handle = self.member_badges.get(&member_badge).unwrap();
@@ -326,16 +423,12 @@ mod job_contract {
         ) {
             let tx_data = TxData {
                 epoch: Decimal::from(VestingSchedule::get_curr_epoch()),
-                app_handle: self.app_handle.clone(),
-                contract_handle: self.contract_handle.clone(),
-                contract_address: Runtime::global_address(),
 
                 from_handle,
                 from_badge,
                 to_handle,
                 to_badge,
 
-                resource_address: self.funds.resource_address(),
                 amount,
                 tx_type,
             };
@@ -348,7 +441,7 @@ mod job_contract {
                 NonFungibleLocalId::String(string_id) => string_id,
                 _ => Runtime::panic(String::from("Invalid ID")),
             };
-            string_id.value().to_string()
+            string_id.value().to_owned()
         }
 
         fn check_funds(funds: &FungibleBucket) {

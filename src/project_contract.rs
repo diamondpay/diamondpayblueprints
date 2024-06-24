@@ -1,5 +1,6 @@
 use crate::badge_manager::badge_manager::BadgeManager;
 use crate::contract_types::*;
+use crate::marketplace::marketplace::Marketplace;
 use scrypto::prelude::*;
 
 #[blueprint]
@@ -16,10 +17,13 @@ mod project_contract {
             join => PUBLIC;
             deposit => restrict_to: [admin];
             update => restrict_to: [admin];
+            details => restrict_to: [admin];
             reward => restrict_to: [admin];
             complete => restrict_to: [admin];
             withdraw => PUBLIC;
             cancellation => restrict_to: [admin];
+            list => restrict_to: [admin];
+            data => PUBLIC;
         }
     }
 
@@ -28,6 +32,9 @@ mod project_contract {
         app_handle: String,
         contract_handle: String,
         contract_name: String,
+        details: KeyValueStore<String, String>,
+        marketplace: Global<Marketplace>,
+        markets: HashSet<String>,
 
         admin_badge: ResourceAddress,
         admin_handle: String,
@@ -36,32 +43,52 @@ mod project_contract {
         signatures: HashSet<ResourceAddress>,
         funds: FungibleVault,
 
+        start_epoch: i64,
+        end_epoch: i64,
+        amount: Decimal,
+        rewarded: Decimal,
+        withdrawn: Decimal,
+
         objectives: HashMap<Decimal, HashMap<ResourceAddress, Decimal>>,
         completed: HashMap<Decimal, HashMap<ResourceAddress, Decimal>>,
         reserved: HashMap<ResourceAddress, FungibleVault>,
+        is_joinable: bool,
         is_cancelled: bool,
         cancelled_epoch: Decimal,
         created_epoch: Decimal,
+        list_epoch: Decimal,
     }
 
     impl ProjectContract {
         pub fn instantiate(
+            dapp_address: ComponentAddress,
+            marketplace_address: ComponentAddress,
             app_handle: String,
             contract_handle: String,
             contract_name: String,
             admin_badge: ResourceAddress,
             admin_proof: NonFungibleProof,
             resource_address: ResourceAddress,
-            dapp_address: ComponentAddress,
+            start_epoch: i64,
+            end_epoch: i64,
+            details: HashMap<String, String>,
         ) -> (Global<ProjectContract>, NonFungibleBucket) {
             let admin_handle = Self::get_proof_id(&admin_badge, admin_proof);
-            let badge_manager = BadgeManager::new("Project".to_string(), contract_name.clone());
+            let badge_manager = BadgeManager::new(PROJECT.to_owned(), contract_name.clone());
+            assert!(end_epoch >= start_epoch, "[Instantiate]: Invalid Dates");
+            let new_details = KeyValueStore::<String, String>::new();
+            for (key, value) in details.iter() {
+                new_details.insert(key.to_owned(), value.to_owned());
+            }
 
             let component = Self {
                 badge_manager,
                 app_handle,
                 contract_handle,
                 contract_name,
+                details: new_details,
+                marketplace: Global::<Marketplace>::from(marketplace_address),
+                markets: HashSet::new(),
 
                 admin_badge,
                 admin_handle,
@@ -70,12 +97,20 @@ mod project_contract {
                 signatures: HashSet::new(),
                 funds: FungibleVault::new(resource_address),
 
+                start_epoch,
+                end_epoch,
+                amount: dec!(0),
+                rewarded: dec!(0),
+                withdrawn: dec!(0),
+
                 objectives: HashMap::new(),
                 completed: HashMap::new(),
                 reserved: HashMap::new(),
+                is_joinable: true,
                 is_cancelled: false,
                 cancelled_epoch: dec!(0),
                 created_epoch: Self::get_curr_epoch(),
+                list_epoch: dec!(0),
             }
             .instantiate()
             .prepare_to_globalize(OwnerRole::None)
@@ -104,9 +139,10 @@ mod project_contract {
                 self.admin_handle.clone(),
                 BadgeData {
                     contract_address,
+                    contract_kind: ContractKind::Project,
+                    contract_role: ContractRole::Admin,
                     contract_handle: self.contract_handle.clone(),
                     app_handle: self.app_handle.clone(),
-                    member_handle: self.admin_handle.clone(),
                 },
             );
 
@@ -124,7 +160,10 @@ mod project_contract {
         }
 
         pub fn invite(&mut self, member_badge: ResourceAddress, member_handle: String) {
-            assert!(self.member_badges.len() <= 30, "[Invite]: Too many members");
+            assert!(
+                self.member_badges.len() <= MAX_MEMBERS,
+                "[Invite]: Too many members"
+            );
             assert!(
                 !self.member_badges.contains_key(&member_badge),
                 "[Add Member]: Already Added"
@@ -187,9 +226,10 @@ mod project_contract {
                 member_handle.clone(),
                 BadgeData {
                     contract_address,
+                    contract_kind: ContractKind::Project,
+                    contract_role: ContractRole::Member,
                     contract_handle: self.contract_handle.clone(),
                     app_handle: self.app_handle.clone(),
-                    member_handle: member_handle.clone(),
                 },
             );
 
@@ -207,6 +247,7 @@ mod project_contract {
         }
 
         pub fn deposit(&mut self, funds: FungibleBucket) {
+            assert!(!self.is_cancelled, "[Deposit]: Is Cancelled");
             Self::check_funds(&funds);
 
             // CREATE TXS
@@ -219,17 +260,17 @@ mod project_contract {
                 TxType::Deposit,
             );
 
+            self.amount = self.amount + funds.amount();
             self.funds.put(funds);
         }
 
         pub fn update(&mut self, objectives: HashMap<Decimal, HashMap<ResourceAddress, Decimal>>) {
             let total_objs = objectives.len() + self.completed.len();
-            assert!(total_objs <= 30, "[Update]: Too many objectives");
+            assert!(total_objs <= MAX_OBJS, "[Update]: Too many objectives");
 
             let mut total = dec!("0");
             for (obj_num, members) in objectives.iter() {
                 assert!(!members.is_empty(), "[Update]: Empty Members");
-                assert!(members.len() <= 10, "[Update]: Too many members");
                 for (member, amount) in members.iter() {
                     if self.completed.contains_key(obj_num) {
                         let com_dis = self.completed.get(obj_num).unwrap();
@@ -254,6 +295,33 @@ mod project_contract {
                 self.badge_manager.badge(),
                 dec!(0),
                 TxType::Update,
+            );
+        }
+
+        pub fn details(
+            &mut self,
+            start_epoch: i64,
+            end_epoch: i64,
+            details: HashMap<String, String>,
+            is_joinable: bool,
+        ) {
+            assert!(end_epoch >= start_epoch, "[Instantiate]: Invalid Dates");
+            self.start_epoch = start_epoch;
+            self.end_epoch = end_epoch;
+
+            for (key, value) in details.iter() {
+                self.details.insert(key.to_owned(), value.to_owned());
+            }
+            self.is_joinable = is_joinable;
+
+            // CREATE TXS
+            self.create_tx(
+                self.admin_handle.clone(),
+                self.admin_badge,
+                self.contract_handle.clone(),
+                self.badge_manager.badge(),
+                dec!(0),
+                TxType::Details,
             );
         }
 
@@ -286,15 +354,17 @@ mod project_contract {
             }
 
             // CREATE TXS
-            let handle = self.member_badges.get(&member).unwrap().to_string();
+            let rewarded = pay_bucket.amount();
+            let handle = self.member_badges.get(&member).unwrap().to_owned();
             self.create_tx(
                 self.contract_handle.clone(),
                 self.badge_manager.badge(),
                 handle,
                 member,
-                pay_bucket.amount(),
+                rewarded,
                 TxType::Reward,
             );
+            self.rewarded = self.rewarded + rewarded;
 
             // Deposit into Reserved Vaults
             if !self.reserved.contains_key(&member) {
@@ -318,10 +388,13 @@ mod project_contract {
             member_badge: ResourceAddress,
             proof: NonFungibleProof,
         ) -> FungibleBucket {
+            self.check_list();
             let member_handle = self.check_proof(&member_badge, proof);
             let vault = self.reserved.get_mut(&member_badge).unwrap();
             let bucket = vault.take_all();
             assert!(!bucket.is_empty(), "[Withdraw]: Is empty");
+            let withdrawn = bucket.amount();
+            self.withdrawn = self.withdrawn + withdrawn;
 
             // CREATE TXS
             self.create_tx(
@@ -329,7 +402,7 @@ mod project_contract {
                 self.badge_manager.badge(),
                 member_handle,
                 member_badge,
-                bucket.amount(),
+                withdrawn,
                 TxType::Withdraw,
             );
 
@@ -337,6 +410,7 @@ mod project_contract {
         }
 
         pub fn cancellation(&mut self) -> FungibleBucket {
+            self.check_list();
             self.objectives = HashMap::new();
             self.is_cancelled = true;
             self.cancelled_epoch = Self::get_curr_epoch();
@@ -353,6 +427,62 @@ mod project_contract {
             );
 
             total
+        }
+
+        pub fn list(&mut self, market_name: String) {
+            self.marketplace.check_contract(
+                market_name.to_owned(),
+                ContractKind::Project,
+                Runtime::global_address(),
+                self.amount,
+                self.funds.resource_address(),
+            );
+            assert!(self.markets.len() <= MAX_MARKETS, "[List]: Reached max");
+            assert!(
+                !self.markets.contains(&market_name),
+                "[List]: Already listed"
+            );
+            self.markets.insert(market_name);
+            self.list_epoch = Self::get_curr_epoch();
+
+            // CREATE TXS
+            self.create_tx(
+                self.admin_handle.clone(),
+                self.admin_badge,
+                self.contract_handle.clone(),
+                self.badge_manager.badge(),
+                dec!(0),
+                TxType::List,
+            );
+        }
+
+        pub fn data(
+            &self,
+        ) -> (
+            ComponentAddress,
+            ResourceAddress,
+            Decimal,
+            ResourceAddress,
+            bool,
+            ComponentAddress,
+        ) {
+            (
+                self.marketplace.address(),
+                self.admin_badge,
+                self.amount - self.rewarded,
+                self.funds.resource_address(),
+                self.is_joinable && !self.is_cancelled,
+                Runtime::global_address(),
+            )
+        }
+
+        // Private Funcs
+
+        fn check_list(&self) {
+            assert!(
+                Self::get_curr_epoch() >= self.list_epoch + SEC_IN_DAY * 3i64,
+                "[Check List]: Must be 3 days after listing"
+            );
         }
 
         fn check_proof(&self, member_badge: &ResourceAddress, proof: NonFungibleProof) -> String {
@@ -373,14 +503,10 @@ mod project_contract {
         ) {
             let tx_data = TxData {
                 epoch: Self::get_curr_epoch(),
-                app_handle: self.app_handle.clone(),
-                contract_handle: self.contract_handle.clone(),
-                contract_address: Runtime::global_address(),
                 from_handle,
                 from_badge,
                 to_handle,
                 to_badge,
-                resource_address: self.funds.resource_address(),
                 amount,
                 tx_type,
             };
@@ -393,7 +519,7 @@ mod project_contract {
                 NonFungibleLocalId::String(string_id) => string_id,
                 _ => Runtime::panic(String::from("Invalid ID")),
             };
-            string_id.value().to_string()
+            string_id.value().to_owned()
         }
 
         fn check_funds(funds: &FungibleBucket) {

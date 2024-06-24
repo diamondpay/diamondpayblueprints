@@ -5,6 +5,7 @@ mod common;
 fn create_project(
     test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     package_address: PackageAddress,
+    marketplace_address: ComponentAddress,
     admin: common::MemberData,
     resource_address: ResourceAddress,
 ) -> ComponentAddress {
@@ -23,13 +24,24 @@ fn create_project(
             "instantiate",
             |lookup| {
                 (
+                    admin.account_address,
+                    marketplace_address,
                     "app_handle",
                     "contract_handle",
                     "Contract Name",
                     admin.resource_address,
                     lookup.proof("proof"),
                     resource_address,
-                    admin.account_address,
+                    1662700716i64,
+                    1725859156i64,
+                    HashMap::from([
+                        ("obj_names", ""),
+                        ("description", "Test description goes here"),
+                        ("social_urls", "https://google.com"),
+                        ("link_urls", "https://google.com"),
+                        ("image_urls", "https://google.com"),
+                        ("video_ids", "https://google.com"),
+                    ]),
                 )
             },
         )
@@ -216,6 +228,38 @@ fn project_withdraw(
     receipt.expect_commit_success();
 }
 
+fn project_list(
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
+    member: common::MemberData,
+    project_address: ComponentAddress,
+    marketplace_address: ComponentAddress,
+) {
+    let public_key = member.public_key;
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .create_proof_from_account_of_non_fungibles(
+            member.account_address,
+            member.resource_address,
+            vec![member.lid.clone()],
+        )
+        .call_method(project_address, "list", manifest_args!("Test"))
+        .pop_from_auth_zone("proof")
+        .call_method_with_name_lookup(marketplace_address, "add_project", |lookup| {
+            ("Test", project_address, lookup.proof("proof"))
+        })
+        .call_method(
+            member.account_address,
+            "deposit_batch",
+            manifest_args!(ManifestExpression::EntireWorktop),
+        )
+        .build();
+    let receipt = test_runner.execute_manifest(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)],
+    );
+    receipt.expect_commit_success();
+}
+
 //
 //
 // Tests
@@ -223,18 +267,15 @@ fn project_withdraw(
 #[test]
 fn test_members() {
     let (mut test_runner, app) = common::setup_test();
-    let resource_address = test_runner.create_freely_mintable_and_burnable_fungible_resource(
-        OwnerRole::None,
-        Some(dec!(1000)),
-        3u8,
-        app.admin.account_address,
-    );
     let project_address = create_project(
         &mut test_runner,
         app.package_address,
+        app.marketplace_address,
         app.admin.clone(),
-        resource_address,
+        app.resource_address,
     );
+    println!("Project Address: {:?}", project_address);
+
     project_test(
         &mut test_runner,
         app.admin.clone(),
@@ -262,18 +303,37 @@ fn test_members() {
 
 #[test]
 fn test() {
+    // Toggle this to test List vs Cancellation/Withdraw
+    let is_list = true;
+
     let (mut test_runner, app) = common::setup_test();
-    let resource_address = test_runner.create_freely_mintable_and_burnable_fungible_resource(
-        OwnerRole::None,
-        Some(dec!(10000)),
-        3u8,
-        app.admin.account_address,
+    // Marketplace add market
+    project_test(
+        &mut test_runner,
+        app.admin.clone(),
+        app.marketplace_address,
+        "add_market",
+        manifest_args!("Main", true, dec!(2000), app.resource_address),
     );
+    project_test(
+        &mut test_runner,
+        app.admin.clone(),
+        app.marketplace_address,
+        "update_market",
+        manifest_args!(
+            "Main",
+            true,
+            dec!(3000),
+            HashMap::from([("description", "Test")])
+        ),
+    );
+
     let project_address = create_project(
         &mut test_runner,
         app.package_address,
+        app.marketplace_address,
         app.admin.clone(),
-        resource_address,
+        app.resource_address,
     );
     println!("Project Address: {:?}", project_address);
 
@@ -297,8 +357,8 @@ fn test() {
     project_deposit(
         &mut test_runner,
         app.admin.clone(),
-        resource_address,
-        dec!(1800),
+        app.resource_address,
+        dec!(3000),
         project_address,
     );
     let objs = HashMap::from([
@@ -330,6 +390,14 @@ fn test() {
                 (app.member.resource_address, dec!(400)),
             ]),
         ),
+        (
+            dec!(5),
+            HashMap::from([(app.member.resource_address, dec!(200))]),
+        ),
+        (
+            dec!(6),
+            HashMap::from([(app.member.resource_address, dec!(1000))]),
+        ),
     ]);
     project_test(
         &mut test_runner,
@@ -342,11 +410,34 @@ fn test() {
         &mut test_runner,
         app.admin.clone(),
         project_address,
+        "details",
+        manifest_args!(
+            1662700716i64,
+            1725859156i64,
+            HashMap::from([("obj_names", "Objective 1, Objective 2, Objective 3")]),
+            true
+        ),
+    );
+    if is_list {
+        project_list(
+            &mut test_runner,
+            app.admin.clone(),
+            project_address,
+            app.marketplace_address,
+        );
+    }
+
+    project_test(
+        &mut test_runner,
+        app.admin.clone(),
+        project_address,
         "complete",
         manifest_args!(dec!(1)),
     );
-    project_withdraw(&mut test_runner, app.admin.clone(), project_address);
-    project_withdraw(&mut test_runner, app.member.clone(), project_address);
+    if !is_list {
+        project_withdraw(&mut test_runner, app.admin.clone(), project_address);
+        project_withdraw(&mut test_runner, app.member.clone(), project_address);
+    }
     project_test(
         &mut test_runner,
         app.admin.clone(),
@@ -361,9 +452,12 @@ fn test() {
         "complete",
         manifest_args!(dec!(3)),
     );
-    project_cancellation(&mut test_runner, app.admin.clone(), project_address);
-    project_withdraw(&mut test_runner, app.admin.clone(), project_address);
-    project_withdraw(&mut test_runner, app.member.clone(), project_address);
+
+    if !is_list {
+        project_cancellation(&mut test_runner, app.admin.clone(), project_address);
+        project_withdraw(&mut test_runner, app.admin.clone(), project_address);
+        project_withdraw(&mut test_runner, app.member.clone(), project_address);
+    }
 
     let p_state: ProjectContractState = test_runner.component_state(project_address);
     assert!(p_state.completed.contains_key(&dec!(1)));

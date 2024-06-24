@@ -5,6 +5,7 @@ mod common;
 fn create_job(
     test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     package_address: PackageAddress,
+    marketplace_address: ComponentAddress,
     admin: common::MemberData,
     resource_address: ResourceAddress,
     start: i64,
@@ -23,18 +24,26 @@ fn create_job(
         .pop_from_auth_zone("proof")
         .call_function_with_name_lookup(package_address, "JobContract", "instantiate", |lookup| {
             (
+                admin.account_address,
+                marketplace_address,
                 "app_handle",
                 "contract_handle",
                 "Contract Name",
                 admin.resource_address,
                 lookup.proof("proof"),
                 resource_address,
-                admin.account_address,
                 start,
                 cliff,
                 end,
                 interval,
                 false,
+                HashMap::from([
+                    ("description", "Test description goes here"),
+                    ("social_urls", "https://google.com"),
+                    ("link_urls", "https://google.com"),
+                    ("image_urls", "https://google.com"),
+                    ("video_ids", "https://google.com"),
+                ]),
             )
         })
         .call_method(
@@ -219,20 +228,47 @@ fn job_deposit(
     receipt.expect_commit_success();
 }
 
+fn job_list(
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
+    member: common::MemberData,
+    job_address: ComponentAddress,
+    marketplace_address: ComponentAddress,
+) {
+    let public_key = member.public_key;
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .create_proof_from_account_of_non_fungibles(
+            member.account_address,
+            member.resource_address,
+            vec![member.lid.clone()],
+        )
+        .call_method(job_address, "list", manifest_args!("Test"))
+        .pop_from_auth_zone("proof")
+        .call_method_with_name_lookup(marketplace_address, "add_job", |lookup| {
+            ("Test", job_address, lookup.proof("proof"))
+        })
+        .call_method(
+            member.account_address,
+            "deposit_batch",
+            manifest_args!(ManifestExpression::EntireWorktop),
+        )
+        .build();
+    let receipt = test_runner.execute_manifest(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)],
+    );
+    receipt.expect_commit_success();
+}
+
 #[test]
 fn test_members() {
     let (mut test_runner, app) = common::setup_test();
-    let resource_address = test_runner.create_freely_mintable_and_burnable_fungible_resource(
-        OwnerRole::None,
-        Some(dec!(10500)),
-        3u8,
-        app.admin.account_address,
-    );
     let job_address = create_job(
         &mut test_runner,
         app.package_address,
+        app.marketplace_address,
         app.admin.clone(),
-        resource_address,
+        app.resource_address,
         1662700716i64,
         Some(1694236716i64),
         1725859156i64,
@@ -267,7 +303,7 @@ fn test_members() {
     job_deposit(
         &mut test_runner,
         app.admin.clone(),
-        resource_address,
+        app.resource_address,
         dec!(10000),
         job_address,
     );
@@ -277,18 +313,37 @@ fn test_members() {
 
 #[test]
 fn test() {
+    // Toggle this to test List vs Cancellation/Withdraw
+    let is_list = true;
+
     let (mut test_runner, app) = common::setup_test();
-    let resource_address = test_runner.create_freely_mintable_and_burnable_fungible_resource(
-        OwnerRole::None,
-        Some(dec!(10500)),
-        3u8,
-        app.admin.account_address,
+    // Marketplace add market
+    job_test(
+        &mut test_runner,
+        app.admin.clone(),
+        app.marketplace_address,
+        "add_market",
+        manifest_args!("Main", false, dec!(2000), app.resource_address),
     );
+    job_test(
+        &mut test_runner,
+        app.admin.clone(),
+        app.marketplace_address,
+        "update_market",
+        manifest_args!(
+            "Main",
+            false,
+            dec!(3000),
+            HashMap::from([("description", "Test")])
+        ),
+    );
+
     let job_address = create_job(
         &mut test_runner,
         app.package_address,
+        app.marketplace_address,
         app.admin.clone(),
-        resource_address,
+        app.resource_address,
         1662700716i64,
         Some(1694236716i64),
         1725859156i64,
@@ -300,10 +355,26 @@ fn test() {
     job_deposit(
         &mut test_runner,
         app.admin.clone(),
-        resource_address,
+        app.resource_address,
         dec!(10000),
         job_address,
     );
+
+    job_test(
+        &mut test_runner,
+        app.admin.clone(),
+        job_address,
+        "details",
+        manifest_args!(HashMap::from([("description", "New Description")])),
+    );
+    if is_list {
+        job_list(
+            &mut test_runner,
+            app.admin.clone(),
+            job_address,
+            app.marketplace_address,
+        );
+    }
 
     job_test(
         &mut test_runner,
@@ -314,11 +385,13 @@ fn test() {
     );
     job_join(&mut test_runner, app.member.clone(), job_address);
 
-    job_withdraw(&mut test_runner, app.member.clone(), job_address);
-    job_leave(&mut test_runner, app.member.clone(), job_address);
-    job_cancellation(&mut test_runner, app.admin.clone(), job_address);
+    if !is_list {
+        job_withdraw(&mut test_runner, app.member.clone(), job_address);
+        job_leave(&mut test_runner, app.member.clone(), job_address);
+        job_cancellation(&mut test_runner, app.admin.clone(), job_address);
 
-    let j_state: JobContractState = test_runner.component_state(job_address);
-    println!("State: {:?}", j_state.vesting_schedule.withdrawn);
-    assert!(j_state.vesting_schedule.withdrawn == dec!(4979.477));
+        let j_state: JobContractState = test_runner.component_state(job_address);
+        println!("State: {:?}", j_state.vesting_schedule.withdrawn);
+        assert!(j_state.vesting_schedule.withdrawn == dec!(4979.477));
+    }
 }

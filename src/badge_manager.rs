@@ -2,16 +2,16 @@ use crate::contract_types::*;
 use scrypto::prelude::*;
 
 #[blueprint]
-#[types(BadgeData, TxData)]
+#[types(BadgeData)]
 mod badge_manager {
     struct BadgeManager {
         auth: FungibleVault,            // internal auth badge used for minting fts & nfts
         admin_manager: ResourceManager, // ResourceManager to mint admin nft with contract data
         member_manager: ResourceManager, // ResourceManager to mint member nfts with contract data
-        tx_manager: ResourceManager,    // ResourceManager to mint transaction nfts
-        tx_vault: NonFungibleVault,     // vault to store contract transaction nfts
-        years: HashSet<Decimal>,        // which years transactions have taken place
-        kind: String,                   // kind of contract: Project | Job
+        txs: KeyValueStore<String, TxData>,
+        txs_total: Decimal,
+        years: HashSet<Decimal>, // which years transactions have taken place
+        kind: String,            // kind of contract: Project | Job
     }
 
     impl BadgeManager {
@@ -52,18 +52,12 @@ mod badge_manager {
                 &auth_rule,
             );
 
-            let tx_manager = Self::nft_builder::<TxData>(
-                &format!("{kind}Tx"),
-                &format!("NFTs for tracking {kind} txs"),
-                &auth_rule,
-            );
-
             let component = Self {
                 auth: FungibleVault::with_bucket(auth_bucket),
                 admin_manager,
                 member_manager,
-                tx_manager,
-                tx_vault: NonFungibleVault::new(tx_manager.address()),
+                txs: KeyValueStore::new(),
+                txs_total: dec!(0),
                 years: HashSet::new(),
                 kind,
             }
@@ -73,7 +67,7 @@ mod badge_manager {
         }
 
         pub fn is_new(&self) -> bool {
-            self.tx_vault.is_empty()
+            self.txs_total == dec!(0)
         }
 
         pub fn badge(&self) -> ResourceAddress {
@@ -105,13 +99,8 @@ mod badge_manager {
         }
 
         pub fn create_tx(&mut self, tx_data: TxData) {
-            let total = self.tx_manager.total_supply().unwrap() + 1;
-            let bucket = self.auth.authorize_with_amount(1, || {
-                self.tx_manager
-                    .mint_non_fungible(&Self::nft_id(format!("{total}")), tx_data)
-                    .as_non_fungible()
-            });
-            self.tx_vault.put(bucket);
+            let new_total = self.txs_total + 1;
+            self.txs.insert(format!("{new_total}"), tx_data);
 
             let year = Self::get_year();
             if !self.years.contains(&year) {
@@ -165,10 +154,6 @@ mod badge_manager {
                 .mint_roles(mint_roles! {
                     minter => access_rule.clone();
                     minter_updater => rule!(deny_all);
-                })
-                .non_fungible_data_update_roles(non_fungible_data_update_roles! {
-                    non_fungible_data_updater => access_rule.clone();
-                    non_fungible_data_updater_updater => rule!(deny_all);
                 })
                 .create_with_no_initial_supply()
         }

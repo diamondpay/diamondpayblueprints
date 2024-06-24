@@ -14,6 +14,8 @@ pub struct TestSetup {
     pub package_address: PackageAddress,
     pub admin: MemberData,
     pub member: MemberData,
+    pub resource_address: ResourceAddress,
+    pub marketplace_address: ComponentAddress,
 }
 
 fn create_env() -> (
@@ -58,10 +60,41 @@ fn create_member(
         account_address,
         public_key,
         resource_address,
-        handle: handle.to_string(),
+        handle: handle.to_owned(),
     };
 
     member_data
+}
+
+fn create_marketplace(
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
+    package_address: PackageAddress,
+    resource_address: ResourceAddress,
+    admin: MemberData,
+) -> ComponentAddress {
+    let public_key = admin.public_key;
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .call_function(
+            package_address,
+            "Marketplace",
+            "instantiate",
+            manifest_args!(
+                admin.resource_address,
+                "App",
+                admin.account_address,
+                vec!("Test", "Test2"),
+                resource_address
+            ),
+        )
+        .build();
+    let receipt = test_runner.execute_manifest(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)],
+    );
+    let outcome = receipt.expect_commit_success();
+    let components = outcome.new_component_addresses();
+    components[0]
 }
 
 pub fn setup_test() -> (
@@ -71,11 +104,25 @@ pub fn setup_test() -> (
     let (mut test_runner, package_address) = create_env();
     let admin = create_member(&mut test_runner, "handle_1");
     let member = create_member(&mut test_runner, "handle_2");
+    let resource_address = test_runner.create_freely_mintable_and_burnable_fungible_resource(
+        OwnerRole::None,
+        Some(dec!(11000)),
+        3u8,
+        admin.account_address,
+    );
+    let marketplace_address = create_marketplace(
+        &mut test_runner,
+        package_address,
+        resource_address,
+        admin.clone(),
+    );
 
     let app_setup = TestSetup {
         package_address,
         admin,
         member,
+        resource_address,
+        marketplace_address,
     };
     (test_runner, app_setup)
 }

@@ -1,6 +1,5 @@
+use crate::contract_types::SEC_IN_DAY;
 use scrypto::prelude::*;
-
-const SEC_IN_DAY: i64 = 60i64 * 60i64 * 24i64;
 
 #[derive(ScryptoSbor)]
 pub struct VestingSchedule {
