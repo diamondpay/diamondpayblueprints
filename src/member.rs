@@ -14,10 +14,11 @@ mod member {
             add_project => PUBLIC;
             add_job => PUBLIC;
             remove_contract => restrict_to: [admin];
-            deposit_resource => restrict_to: [admin];
-            withdraw_resource => restrict_to: [admin];
+            deposit => restrict_to: [admin];
+            withdraw => restrict_to: [admin];
             update_members => restrict_to: [admin];
             update_app => restrict_to: [admin];
+            remove_app => restrict_to: [admin];
             details => restrict_to: [admin];
         }
     }
@@ -160,7 +161,7 @@ mod member {
             }
         }
 
-        pub fn deposit_resource(&mut self, bucket: Bucket) {
+        pub fn deposit(&mut self, bucket: Bucket) {
             let resource_address = bucket.resource_address();
             let has_resource = self.resources.get(&resource_address).is_some();
             if has_resource {
@@ -174,26 +175,27 @@ mod member {
             }
         }
 
-        pub fn withdraw_resource(&mut self, resource_address: ResourceAddress) -> Bucket {
+        pub fn withdraw(&mut self, resource_address: ResourceAddress) -> Bucket {
             self.resources
                 .get_mut(&resource_address)
                 .unwrap()
                 .take_all()
         }
 
-        pub fn update_members(&mut self, contacts: Vec<ResourceAddress>, is_add: bool) {
+        pub fn update_members(&mut self, contacts: Vec<ResourceAddress>, is_remove: bool) {
             for contact_badge in contacts {
                 let global_address: GlobalAddress = ResourceManager::from(contact_badge)
                     .get_metadata("member_address")
                     .unwrap()
                     .unwrap();
                 let contact_address = ComponentAddress::try_from(global_address).unwrap();
-                if is_add {
-                    self.member_badges.insert(contact_badge, ());
-                    self.member_components.insert(contact_address, ());
-                } else {
+                let contact = Global::<Member>::from(contact_address);
+                if is_remove {
                     self.member_badges.remove(&contact_badge);
-                    self.member_components.remove(&contact_address);
+                    self.member_components.remove(&contact.address());
+                } else {
+                    self.member_badges.insert(contact_badge, ());
+                    self.member_components.insert(contact.address(), ());
                 }
             }
         }
@@ -201,23 +203,36 @@ mod member {
         pub fn update_app(
             &mut self,
             name: String,
-            data: HashMap<String, String>,
-            urls: HashMap<String, Vec<Url>>,
-            is_remove: bool,
+            icon_url: String,
+            app_handle: String,
+            subtitle: String,
+            details: HashMap<String, String>,
         ) {
-            if is_remove {
-                self.apps.remove(&name);
-                return;
-            }
-
             let has_app = self.apps.get(&name).is_some();
             if has_app {
+                // update app while preserving insert order
                 let mut app = self.apps.get_mut(&name).unwrap();
-                app.data = data;
-                app.urls = urls;
+                app.name = name;
+                app.icon_url = icon_url;
+                app.app_handle = app_handle;
+                app.subtitle = subtitle;
+                app.details = details;
             } else {
-                self.apps.insert(name, AppData { data, urls });
+                self.apps.insert(
+                    name.clone(),
+                    AppData {
+                        name,
+                        icon_url,
+                        app_handle,
+                        subtitle,
+                        details,
+                    },
+                );
             }
+        }
+
+        pub fn remove_app(&mut self, name: String) {
+            self.apps.remove(&name);
         }
 
         pub fn details(&mut self, details: HashMap<String, String>) {

@@ -34,10 +34,12 @@ pub struct MemberData {
 
 #[derive(ScryptoSbor)]
 pub struct AppData {
-    // handle, name, subtitle, description, video_ids
-    pub data: HashMap<String, String>,
-    // icon_url, social_urls, link_urls, image_urls
-    pub urls: HashMap<String, Vec<Url>>,
+    pub name: String,
+    pub icon_url: String,
+    pub app_handle: String,
+    pub subtitle: String,
+    // description, social_urls, link_urls, image_urls, video_ids
+    pub details: HashMap<String, String>,
 }
 
 #[derive(ScryptoSbor, Clone)]

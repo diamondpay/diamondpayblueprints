@@ -40,7 +40,7 @@ fn create_project(
                         ("social_urls", "https://google.com"),
                         ("link_urls", "https://google.com"),
                         ("image_urls", "https://google.com"),
-                        ("video_ids", "https://google.com"),
+                        ("video_ids", "id1"),
                     ]),
                     Some(admin.member_component),
                 )
