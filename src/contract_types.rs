@@ -3,8 +3,6 @@ use scrypto::prelude::*;
 pub const INFO_URL: &str = "https://github.com/diamondpay";
 pub const ICON_URL: &str = "https://avatars.githubusercontent.com/u/162780104";
 pub const SEC_IN_DAY: i64 = 60i64 * 60i64 * 24i64;
-pub const PROJECT: &str = "Project";
-pub const JOB: &str = "Job";
 pub const MAX_MEMBERS: usize = 10;
 pub const MAX_OBJS: usize = 30;
 pub const MAX_MARKETS: usize = 3;

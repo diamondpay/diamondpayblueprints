@@ -1,6 +1,7 @@
 use crate::badge_manager::badge_manager::BadgeManager;
 use crate::contract_types::*;
 use crate::marketplace::marketplace::Marketplace;
+use crate::member::member::Member;
 use scrypto::prelude::*;
 
 #[blueprint]
@@ -19,11 +20,11 @@ mod project_contract {
             update => restrict_to: [admin];
             details => restrict_to: [admin];
             reward => restrict_to: [admin];
-            complete => restrict_to: [admin];
             withdraw => PUBLIC;
             cancellation => restrict_to: [admin];
             list => restrict_to: [admin];
             data => PUBLIC;
+            role => PUBLIC;
         }
     }
 
@@ -72,9 +73,17 @@ mod project_contract {
             start_epoch: i64,
             end_epoch: i64,
             details: HashMap<String, String>,
+            member_address: Option<ComponentAddress>,
         ) -> (Global<ProjectContract>, NonFungibleBucket) {
+            let (address_reservation, component_address) =
+                Runtime::allocate_component_address(ProjectContract::blueprint_id());
+
             let admin_handle = Self::get_proof_id(&admin_badge, admin_proof);
-            let badge_manager = BadgeManager::new(PROJECT.to_owned(), contract_name.clone());
+            let badge_manager = BadgeManager::new(
+                component_address,
+                ContractKind::Project,
+                contract_name.clone(),
+            );
             assert!(end_epoch >= start_epoch, "[Instantiate]: Invalid Dates");
             let new_details = KeyValueStore::<String, String>::new();
             for (key, value) in details.iter() {
@@ -125,9 +134,15 @@ mod project_contract {
                     "dapp_definition" => GlobalAddress::from(dapp_address), locked;
                 }
             })
+            .with_address(address_reservation)
             .globalize();
 
             let admin_bucket = component.init();
+
+            if member_address.is_some() {
+                let member = Global::<Member>::from(member_address.unwrap());
+                member.add_project(component_address);
+            }
 
             (component, admin_bucket)
         }
@@ -325,62 +340,42 @@ mod project_contract {
             );
         }
 
-        pub fn reward(&mut self, obj_number: Decimal, member: ResourceAddress) {
-            assert!(self.signatures.contains(&member), "[Reward]: No signature");
-            // remove mutable distributions from objectives
-            let mut distributions = self.objectives.remove(&obj_number).unwrap();
-            let amount: Decimal = distributions.get(&member).unwrap().clone();
+        pub fn reward(&mut self, obj_number: Decimal) {
+            let members = self.objectives.remove(&obj_number).unwrap();
+            for (member, amount) in members.iter() {
+                assert!(self.signatures.contains(member), "[Reward]: No signature");
+                let pay_bucket = self.funds.take_advanced(
+                    amount.clone(),
+                    WithdrawStrategy::Rounded(RoundingMode::ToZero),
+                );
+                assert!(!pay_bucket.is_empty(), "[Reward]: No funds");
 
-            let pay_bucket = self
-                .funds
-                .take_advanced(amount, WithdrawStrategy::Rounded(RoundingMode::ToZero));
-            assert!(!pay_bucket.is_empty(), "[Reward]: No funds");
-
-            // add distribution to completed
-            if self.completed.contains_key(&obj_number) {
-                let com_dis = self.completed.get_mut(&obj_number).unwrap();
-                assert!(!com_dis.contains_key(&member), "[Reward]: Invalid");
-                com_dis.insert(member.clone(), amount.clone());
-            } else {
-                let mut com_dis = HashMap::<ResourceAddress, Decimal>::new();
-                com_dis.insert(member.clone(), amount.clone());
-                self.completed.insert(obj_number.clone(), com_dis.clone());
+                let new_amount = pay_bucket.amount();
+                self.rewarded = self.rewarded + new_amount;
+                // Deposit into Reserved Vaults
+                if !self.reserved.contains_key(&member) {
+                    self.reserved
+                        .insert(member.clone(), FungibleVault::with_bucket(pay_bucket));
+                } else {
+                    let vault = self.reserved.get_mut(&member).unwrap();
+                    vault.put(pay_bucket);
+                }
+                // CREATE TXS
+                let handle = self.member_badges.get(&member).unwrap().to_owned();
+                self.create_tx(
+                    self.contract_handle.clone(),
+                    self.badge_manager.badge(),
+                    handle,
+                    member.clone(),
+                    new_amount,
+                    TxType::Reward,
+                );
             }
-            // remove distribution from objective distributions
-            // add updated distribution back into objectives
-            distributions.remove(&member);
-            if !distributions.is_empty() {
-                self.objectives.insert(obj_number, distributions);
-            }
-
-            // CREATE TXS
-            let rewarded = pay_bucket.amount();
-            let handle = self.member_badges.get(&member).unwrap().to_owned();
-            self.create_tx(
-                self.contract_handle.clone(),
-                self.badge_manager.badge(),
-                handle,
-                member,
-                rewarded,
-                TxType::Reward,
+            assert!(
+                !self.completed.contains_key(&obj_number),
+                "[Reward]: Already completed"
             );
-            self.rewarded = self.rewarded + rewarded;
-
-            // Deposit into Reserved Vaults
-            if !self.reserved.contains_key(&member) {
-                self.reserved
-                    .insert(member, FungibleVault::with_bucket(pay_bucket));
-            } else {
-                let vault = self.reserved.get_mut(&member).unwrap();
-                vault.put(pay_bucket);
-            }
-        }
-
-        pub fn complete(&mut self, obj_number: Decimal) {
-            let members = self.objectives.get(&obj_number).unwrap().clone();
-            for (member, _) in members.iter() {
-                self.reward(obj_number, member.clone());
-            }
+            self.completed.insert(obj_number, members);
         }
 
         pub fn withdraw(
@@ -476,6 +471,18 @@ mod project_contract {
             )
         }
 
+        pub fn role(&self, member_badge: ResourceAddress) -> ContractRole {
+            let is_admin = self.admin_badge == member_badge;
+            let is_member = self.signatures.contains(&member_badge);
+            if is_admin {
+                ContractRole::Admin
+            } else if is_member {
+                ContractRole::Member
+            } else {
+                Runtime::panic(String::from("[Badge]: Not a member"))
+            }
+        }
+
         // Private Funcs
 
         fn check_list(&self) {
@@ -483,13 +490,6 @@ mod project_contract {
                 Self::get_curr_epoch() >= self.list_epoch + SEC_IN_DAY * 3i64,
                 "[Check List]: Must be 3 days after listing"
             );
-        }
-
-        fn check_proof(&self, member_badge: &ResourceAddress, proof: NonFungibleProof) -> String {
-            let handle = Self::get_proof_id(member_badge, proof);
-            let saved_handle = self.member_badges.get(&member_badge).unwrap();
-            assert!(&handle == saved_handle, "[Check Proof]: Not Equal");
-            handle
         }
 
         fn create_tx(
@@ -511,6 +511,13 @@ mod project_contract {
                 tx_type,
             };
             self.badge_manager.create_tx(tx_data);
+        }
+
+        fn check_proof(&self, member_badge: &ResourceAddress, proof: NonFungibleProof) -> String {
+            let handle = Self::get_proof_id(member_badge, proof);
+            let saved_handle = self.member_badges.get(&member_badge).unwrap();
+            assert!(&handle == saved_handle, "[Check Proof]: Not Equal");
+            handle
         }
 
         fn get_proof_id(badge: &ResourceAddress, proof: NonFungibleProof) -> String {

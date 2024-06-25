@@ -42,6 +42,7 @@ fn create_project(
                         ("image_urls", "https://google.com"),
                         ("video_ids", "https://google.com"),
                     ]),
+                    Some(admin.member_component),
                 )
             },
         )
@@ -354,6 +355,14 @@ fn test() {
         manifest_args!(app.member.resource_address, "handle_2"),
     );
     project_join(&mut test_runner, app.member.clone(), project_address);
+    project_test(
+        &mut test_runner,
+        app.member.clone(),
+        app.member.member_component,
+        "add_project",
+        manifest_args!(project_address),
+    );
+
     project_deposit(
         &mut test_runner,
         app.admin.clone(),
@@ -431,7 +440,7 @@ fn test() {
         &mut test_runner,
         app.admin.clone(),
         project_address,
-        "complete",
+        "reward",
         manifest_args!(dec!(1)),
     );
     if !is_list {
@@ -442,14 +451,14 @@ fn test() {
         &mut test_runner,
         app.admin.clone(),
         project_address,
-        "complete",
+        "reward",
         manifest_args!(dec!(2)),
     );
     project_test(
         &mut test_runner,
         app.admin.clone(),
         project_address,
-        "complete",
+        "reward",
         manifest_args!(dec!(3)),
     );
 

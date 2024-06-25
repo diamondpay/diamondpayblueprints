@@ -1,6 +1,7 @@
 use crate::badge_manager::badge_manager::BadgeManager;
 use crate::contract_types::*;
 use crate::marketplace::marketplace::Marketplace;
+use crate::member::member::Member;
 use crate::vesting_schedule::VestingSchedule;
 use scrypto::prelude::*;
 
@@ -22,6 +23,7 @@ mod job_contract {
             cancellation => restrict_to: [admin];
             list => restrict_to: [admin];
             data => PUBLIC;
+            role => PUBLIC;
         }
     }
 
@@ -63,9 +65,14 @@ mod job_contract {
             vest_interval: i64,
             is_check_join: bool,
             details: HashMap<String, String>,
+            member_address: Option<ComponentAddress>,
         ) -> (Global<JobContract>, NonFungibleBucket) {
+            let (address_reservation, component_address) =
+                Runtime::allocate_component_address(JobContract::blueprint_id());
+
             let admin_handle = Self::get_proof_id(&admin_badge, admin_proof);
-            let badge_manager = BadgeManager::new(JOB.to_owned(), contract_name.clone());
+            let badge_manager =
+                BadgeManager::new(component_address, ContractKind::Job, contract_name.clone());
             let new_details = KeyValueStore::<String, String>::new();
             for (key, value) in details.iter() {
                 new_details.insert(key.to_owned(), value.to_owned());
@@ -114,9 +121,15 @@ mod job_contract {
                     "dapp_definition" => GlobalAddress::from(dapp_address), locked;
                 }
             })
+            .with_address(address_reservation)
             .globalize();
 
             let admin_bucket = component.init();
+
+            if member_address.is_some() {
+                let member = Global::<Member>::from(member_address.unwrap());
+                member.add_job(component_address);
+            }
 
             (component, admin_bucket)
         }
@@ -370,6 +383,18 @@ mod job_contract {
             )
         }
 
+        pub fn role(&self, member_badge: ResourceAddress) -> ContractRole {
+            let is_admin = self.admin_badge == member_badge;
+            let is_member = self.signatures.contains(&member_badge);
+            if is_admin {
+                ContractRole::Admin
+            } else if is_member {
+                ContractRole::Member
+            } else {
+                Runtime::panic(String::from("[Badge]: Not a member"))
+            }
+        }
+
         // Private Funcs
 
         fn set_reserved(&mut self) {
@@ -405,13 +430,6 @@ mod job_contract {
             );
         }
 
-        fn check_proof(&self, member_badge: &ResourceAddress, proof: NonFungibleProof) -> String {
-            let handle = Self::get_proof_id(member_badge, proof);
-            let saved_handle = self.member_badges.get(&member_badge).unwrap();
-            assert!(&handle == saved_handle, "[Check Proof]: Not Equal");
-            handle
-        }
-
         fn create_tx(
             &self,
             from_handle: String,
@@ -433,6 +451,13 @@ mod job_contract {
                 tx_type,
             };
             self.badge_manager.create_tx(tx_data);
+        }
+
+        fn check_proof(&self, member_badge: &ResourceAddress, proof: NonFungibleProof) -> String {
+            let handle = Self::get_proof_id(member_badge, proof);
+            let saved_handle = self.member_badges.get(&member_badge).unwrap();
+            assert!(&handle == saved_handle, "[Check Proof]: Not Equal");
+            handle
         }
 
         fn get_proof_id(badge: &ResourceAddress, proof: NonFungibleProof) -> String {

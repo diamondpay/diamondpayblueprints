@@ -7,6 +7,7 @@ pub struct MemberData {
     pub public_key: Secp256k1PublicKey,
     pub resource_address: ResourceAddress,
     pub handle: String,
+    pub member_component: ComponentAddress,
 }
 
 #[derive(Clone)]
@@ -42,25 +43,43 @@ fn create_env() -> (
 fn create_member(
     test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     handle: &str,
+    package_address: PackageAddress,
 ) -> MemberData {
     // Create an account
     let (public_key, _, account_address) = test_runner.new_allocated_account();
 
     let id_str = StringNonFungibleLocalId::new(handle).unwrap();
     let lid = NonFungibleLocalId::String(id_str);
-    let resource_address = test_runner.create_freely_mintable_and_burnable_non_fungible_resource(
-        OwnerRole::None,
-        NonFungibleIdType::String,
-        Some(vec![(lid.clone(), ())]),
-        account_address,
+
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .call_function(
+            package_address,
+            "Member",
+            "instantiate",
+            manifest_args!(account_address, handle),
+        )
+        .call_method(
+            account_address,
+            "deposit_batch",
+            manifest_args!(ManifestExpression::EntireWorktop),
+        )
+        .build();
+    let receipt = test_runner.execute_manifest(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)],
     );
+    let outcome = receipt.expect_commit_success();
+    let components = outcome.new_component_addresses();
+    let resources = outcome.new_resource_addresses();
 
     let member_data = MemberData {
         lid,
         account_address,
         public_key,
-        resource_address,
+        resource_address: resources[0],
         handle: handle.to_owned(),
+        member_component: components[0],
     };
 
     member_data
@@ -102,8 +121,8 @@ pub fn setup_test() -> (
     TestSetup,
 ) {
     let (mut test_runner, package_address) = create_env();
-    let admin = create_member(&mut test_runner, "handle_1");
-    let member = create_member(&mut test_runner, "handle_2");
+    let admin = create_member(&mut test_runner, "handle_1", package_address);
+    let member = create_member(&mut test_runner, "handle_2", package_address);
     let resource_address = test_runner.create_freely_mintable_and_burnable_fungible_resource(
         OwnerRole::None,
         Some(dec!(11000)),

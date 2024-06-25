@@ -14,6 +14,7 @@ mod marketplace {
             update => restrict_to: [admin];
             add_market => restrict_to: [admin];
             update_market => restrict_to: [admin];
+            remove_contract => restrict_to: [admin];
             check_contract => PUBLIC;
             add_project => PUBLIC;
             add_job => PUBLIC;
@@ -121,6 +122,14 @@ mod marketplace {
                     .update(name, minimum, details);
             } else {
                 self.jobs.get(&name).unwrap().update(name, minimum, details);
+            }
+        }
+
+        pub fn remove_contract(&mut self, key: String, name: String, is_project: bool) {
+            if is_project {
+                self.projects.get(&name).unwrap().remove(key);
+            } else {
+                self.jobs.get(&name).unwrap().remove(key);
             }
         }
 

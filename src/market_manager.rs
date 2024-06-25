@@ -10,7 +10,7 @@ mod market_manager {
         minimum: Decimal,
         resource_address: ResourceAddress,
         contracts: KeyValueStore<ComponentAddress, ()>,
-        listings: KeyValueStore<String, ComponentAddress>,
+        listings: KeyValueStore<String, Option<ComponentAddress>>,
         listings_total: Decimal,
         details: KeyValueStore<String, String>,
     }
@@ -55,8 +55,13 @@ mod market_manager {
         pub fn list(&mut self, contract_address: ComponentAddress) {
             self.contracts.insert(contract_address, ());
             let new_total = self.listings_total + 1;
+            self.listings_total = new_total;
             self.listings
-                .insert(format!("{new_total}"), contract_address);
+                .insert(format!("{new_total}"), Some(contract_address));
+        }
+
+        pub fn remove(&mut self, key: String) {
+            self.listings.insert(key, None)
         }
 
         pub fn update(&mut self, name: String, minimum: Decimal, details: HashMap<String, String>) {

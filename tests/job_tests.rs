@@ -44,6 +44,7 @@ fn create_job(
                     ("image_urls", "https://google.com"),
                     ("video_ids", "https://google.com"),
                 ]),
+                Some(admin.member_component),
             )
         })
         .call_method(
@@ -384,6 +385,13 @@ fn test() {
         manifest_args!(app.member.resource_address, app.member.handle.clone()),
     );
     job_join(&mut test_runner, app.member.clone(), job_address);
+    job_test(
+        &mut test_runner,
+        app.member.clone(),
+        app.member.member_component,
+        "add_job",
+        manifest_args!(job_address),
+    );
 
     if !is_list {
         job_withdraw(&mut test_runner, app.member.clone(), job_address);
