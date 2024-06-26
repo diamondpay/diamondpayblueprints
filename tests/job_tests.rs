@@ -5,7 +5,6 @@ mod common;
 fn create_job(
     test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     package_address: PackageAddress,
-    marketplace_address: ComponentAddress,
     admin: common::MemberData,
     resource_address: ResourceAddress,
     start: i64,
@@ -25,12 +24,12 @@ fn create_job(
         .call_function_with_name_lookup(package_address, "JobContract", "instantiate", |lookup| {
             (
                 admin.account_address,
-                marketplace_address,
-                "app_handle",
-                "contract_handle",
-                "Contract Name",
+                Some(admin.member_component),
                 admin.resource_address,
                 lookup.proof("proof"),
+                "team_handle",
+                "contract_handle",
+                "Contract Name",
                 resource_address,
                 start,
                 cliff,
@@ -44,7 +43,6 @@ fn create_job(
                     ("image_urls", "https://google.com"),
                     ("video_ids", "id1"),
                 ]),
-                Some(admin.member_component),
             )
         })
         .call_method(
@@ -79,6 +77,11 @@ fn job_test(
             vec![member.lid.clone()],
         )
         .call_method(job_address, method_name, args)
+        .call_method(
+            member.account_address,
+            "deposit_batch",
+            manifest_args!(ManifestExpression::EntireWorktop),
+        )
         .build();
     let receipt = test_runner.execute_manifest(
         manifest,
@@ -234,6 +237,7 @@ fn job_list(
     member: common::MemberData,
     job_address: ComponentAddress,
     marketplace_address: ComponentAddress,
+    resource_address: ResourceAddress,
 ) {
     let public_key = member.public_key;
     let manifest = ManifestBuilder::new()
@@ -243,10 +247,25 @@ fn job_list(
             member.resource_address,
             vec![member.lid.clone()],
         )
-        .call_method(job_address, "list", manifest_args!("Test"))
+        .call_method(
+            member.account_address,
+            "withdraw",
+            manifest_args!(resource_address, dec!(100)),
+        )
+        .take_from_worktop(resource_address, dec!(100), "bucket1")
+        .call_method(
+            job_address,
+            "list",
+            manifest_args!(marketplace_address, "Test"),
+        )
         .pop_from_auth_zone("proof")
         .call_method_with_name_lookup(marketplace_address, "add_job", |lookup| {
-            ("Test", job_address, lookup.proof("proof"))
+            (
+                "Test",
+                job_address,
+                lookup.proof("proof"),
+                lookup.bucket("bucket1"),
+            )
         })
         .call_method(
             member.account_address,
@@ -267,7 +286,6 @@ fn test_members() {
     let job_address = create_job(
         &mut test_runner,
         app.package_address,
-        app.marketplace_address,
         app.admin.clone(),
         app.resource_address,
         1662700716i64,
@@ -323,8 +341,8 @@ fn test() {
         &mut test_runner,
         app.admin.clone(),
         app.marketplace_address,
-        "add_market",
-        manifest_args!("Main", false, dec!(2000), app.resource_address),
+        "add_markets",
+        manifest_args!(vec!["Main"], dec!(2000), dec!(100), app.resource_address),
     );
     job_test(
         &mut test_runner,
@@ -342,7 +360,6 @@ fn test() {
     let job_address = create_job(
         &mut test_runner,
         app.package_address,
-        app.marketplace_address,
         app.admin.clone(),
         app.resource_address,
         1662700716i64,
@@ -374,6 +391,14 @@ fn test() {
             app.admin.clone(),
             job_address,
             app.marketplace_address,
+            app.resource_address,
+        );
+        job_test(
+            &mut test_runner,
+            app.admin.clone(),
+            app.marketplace_address,
+            "withdraw",
+            manifest_args!(app.resource_address),
         );
     }
 

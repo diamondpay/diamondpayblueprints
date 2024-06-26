@@ -30,12 +30,11 @@ mod project_contract {
 
     struct ProjectContract {
         badge_manager: Owned<BadgeManager>,
-        app_handle: String,
+        team_handle: String,
         contract_handle: String,
         contract_name: String,
         details: KeyValueStore<String, String>,
-        marketplace: Global<Marketplace>,
-        markets: HashSet<String>,
+        marketplaces: HashMap<ComponentAddress, Vec<String>>,
 
         admin_badge: ResourceAddress,
         admin_handle: String,
@@ -63,17 +62,16 @@ mod project_contract {
     impl ProjectContract {
         pub fn instantiate(
             dapp_address: ComponentAddress,
-            marketplace_address: ComponentAddress,
-            app_handle: String,
-            contract_handle: String,
-            contract_name: String,
+            member_address: Option<ComponentAddress>,
             admin_badge: ResourceAddress,
             admin_proof: NonFungibleProof,
+            team_handle: String,
+            contract_handle: String,
+            contract_name: String,
             resource_address: ResourceAddress,
             start_epoch: i64,
             end_epoch: i64,
             details: HashMap<String, String>,
-            member_address: Option<ComponentAddress>,
         ) -> (Global<ProjectContract>, NonFungibleBucket) {
             let (address_reservation, component_address) =
                 Runtime::allocate_component_address(ProjectContract::blueprint_id());
@@ -92,12 +90,11 @@ mod project_contract {
 
             let component = Self {
                 badge_manager,
-                app_handle,
+                team_handle,
                 contract_handle,
                 contract_name,
                 details: new_details,
-                marketplace: Global::<Marketplace>::from(marketplace_address),
-                markets: HashSet::new(),
+                marketplaces: HashMap::new(),
 
                 admin_badge,
                 admin_handle,
@@ -157,7 +154,7 @@ mod project_contract {
                     contract_kind: ContractKind::Project,
                     contract_role: ContractRole::Admin,
                     contract_handle: self.contract_handle.clone(),
-                    app_handle: self.app_handle.clone(),
+                    team_handle: self.team_handle.clone(),
                 },
             );
 
@@ -244,7 +241,7 @@ mod project_contract {
                     contract_kind: ContractKind::Project,
                     contract_role: ContractRole::Member,
                     contract_handle: self.contract_handle.clone(),
-                    app_handle: self.app_handle.clone(),
+                    team_handle: self.team_handle.clone(),
                 },
             );
 
@@ -424,20 +421,28 @@ mod project_contract {
             total
         }
 
-        pub fn list(&mut self, market_name: String) {
-            self.marketplace.check_contract(
+        pub fn list(&mut self, marketplace_address: ComponentAddress, market_name: String) {
+            let marketplace = Global::<Marketplace>::from(marketplace_address);
+            marketplace.check_contract(
                 market_name.to_owned(),
                 ContractKind::Project,
                 Runtime::global_address(),
                 self.amount,
                 self.funds.resource_address(),
             );
-            assert!(self.markets.len() <= MAX_MARKETS, "[List]: Reached max");
             assert!(
-                !self.markets.contains(&market_name),
-                "[List]: Already listed"
+                self.marketplaces.len() <= MAX_MARKETPLACES,
+                "[List]: Reached max marketplaces"
             );
-            self.markets.insert(market_name);
+            if self.marketplaces.contains_key(&marketplace_address) {
+                let markets = self.marketplaces.get_mut(&marketplace_address).unwrap();
+                assert!(markets.len() <= MAX_MARKETS, "[List]: Reached max markets");
+                markets.push(market_name);
+            } else {
+                self.marketplaces
+                    .insert(marketplace_address, vec![market_name]);
+            }
+
             self.list_epoch = Self::get_curr_epoch();
 
             // CREATE TXS
@@ -454,7 +459,7 @@ mod project_contract {
         pub fn data(
             &self,
         ) -> (
-            ComponentAddress,
+            HashMap<ComponentAddress, Vec<String>>,
             ResourceAddress,
             Decimal,
             ResourceAddress,
@@ -462,7 +467,7 @@ mod project_contract {
             ComponentAddress,
         ) {
             (
-                self.marketplace.address(),
+                self.marketplaces.clone(),
                 self.admin_badge,
                 self.amount - self.rewarded,
                 self.funds.resource_address(),
@@ -487,8 +492,8 @@ mod project_contract {
 
         fn check_list(&self) {
             assert!(
-                Self::get_curr_epoch() >= self.list_epoch + SEC_IN_DAY * 3i64,
-                "[Check List]: Must be 3 days after listing"
+                Self::get_curr_epoch() >= self.list_epoch + SEC_IN_DAY * LOCK_PERIOD,
+                "[Check List]: Must be after listing period"
             );
         }
 

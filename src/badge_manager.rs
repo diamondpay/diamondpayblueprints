@@ -2,7 +2,7 @@ use crate::contract_types::*;
 use scrypto::prelude::*;
 
 #[blueprint]
-#[types(BadgeData)]
+#[types(BadgeData, String, TxData)]
 mod badge_manager {
     struct BadgeManager {
         admin_manager: ResourceManager, // ResourceManager to mint admin nft with contract data
@@ -56,7 +56,7 @@ mod badge_manager {
             let component = Self {
                 admin_manager,
                 member_manager,
-                txs: KeyValueStore::new(),
+                txs: KeyValueStore::<String, TxData>::new_with_registered_type(),
                 txs_total: dec!(0),
                 years: HashSet::new(),
                 kind,

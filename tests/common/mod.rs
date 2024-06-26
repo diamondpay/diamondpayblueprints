@@ -57,7 +57,12 @@ fn create_member(
             package_address,
             "Member",
             "instantiate",
-            manifest_args!(account_address, handle),
+            manifest_args!(
+                account_address,
+                handle,
+                "https://google.com",
+                Vec::<String>::new()
+            ),
         )
         .call_method(
             account_address,
@@ -103,6 +108,8 @@ fn create_marketplace(
                 "App",
                 admin.account_address,
                 vec!("Test", "Test2"),
+                dec!(100), // minimum
+                dec!(100), // fee
                 resource_address
             ),
         )

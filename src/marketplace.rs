@@ -12,9 +12,11 @@ mod marketplace {
         },
         methods {
             update => restrict_to: [admin];
-            add_market => restrict_to: [admin];
+            add_markets => restrict_to: [admin];
             update_market => restrict_to: [admin];
             remove_contract => restrict_to: [admin];
+            deposit => restrict_to: [admin, SELF];
+            withdraw => restrict_to: [admin, SELF];
             check_contract => PUBLIC;
             add_project => PUBLIC;
             add_job => PUBLIC;
@@ -26,6 +28,7 @@ mod marketplace {
         name: String,
         projects: KeyValueStore<String, Owned<MarketManager>>,
         jobs: KeyValueStore<String, Owned<MarketManager>>,
+        resources: KeyValueStore<ResourceAddress, Vault>,
         details: KeyValueStore<String, String>,
     }
 
@@ -35,6 +38,8 @@ mod marketplace {
             name: String,
             dapp_address: ComponentAddress,
             markets: Vec<String>,
+            minimum: Decimal,
+            fee: Decimal,
             resource_address: ResourceAddress,
         ) -> Global<Marketplace> {
             let projects = KeyValueStore::<String, Owned<MarketManager>>::new();
@@ -44,7 +49,8 @@ mod marketplace {
                 let all_projects = MarketManager::new(
                     market.clone(),
                     ContractKind::Project,
-                    dec!(2000),
+                    minimum,
+                    fee,
                     resource_address,
                 );
                 projects.insert(market.clone(), all_projects);
@@ -52,7 +58,8 @@ mod marketplace {
                 let all_jobs = MarketManager::new(
                     market.clone(),
                     ContractKind::Job,
-                    dec!(2000),
+                    minimum,
+                    fee,
                     resource_address,
                 );
                 jobs.insert(market, all_jobs);
@@ -63,6 +70,7 @@ mod marketplace {
                 name,
                 projects,
                 jobs,
+                resources: KeyValueStore::new(),
                 details: KeyValueStore::new(),
             }
             .instantiate()
@@ -90,22 +98,31 @@ mod marketplace {
             }
         }
 
-        pub fn add_market(
+        pub fn add_markets(
             &mut self,
-            name: String,
-            is_project: bool,
+            names: Vec<String>,
             minimum: Decimal,
+            fee: Decimal,
             resource_address: ResourceAddress,
         ) {
-            let kind = match is_project {
-                true => ContractKind::Project,
-                false => ContractKind::Job,
-            };
-            let market = MarketManager::new(name.clone(), kind.clone(), minimum, resource_address);
-            match kind {
-                ContractKind::Project => self.projects.insert(name, market),
-                ContractKind::Job => self.jobs.insert(name, market),
-            };
+            for name in names {
+                let market = MarketManager::new(
+                    name.clone(),
+                    ContractKind::Project,
+                    minimum,
+                    fee,
+                    resource_address,
+                );
+                self.projects.insert(name.clone(), market);
+                let market = MarketManager::new(
+                    name.clone(),
+                    ContractKind::Job,
+                    minimum,
+                    fee,
+                    resource_address,
+                );
+                self.jobs.insert(name, market);
+            }
         }
 
         pub fn update_market(
@@ -131,6 +148,27 @@ mod marketplace {
             } else {
                 self.jobs.get(&name).unwrap().remove(key);
             }
+        }
+
+        pub fn deposit(&mut self, bucket: Bucket) {
+            let resource_address = bucket.resource_address();
+            let has_resource = self.resources.get(&resource_address).is_some();
+            if has_resource {
+                self.resources
+                    .get_mut(&resource_address)
+                    .unwrap()
+                    .put(bucket);
+            } else {
+                self.resources
+                    .insert(resource_address, Vault::with_bucket(bucket));
+            }
+        }
+
+        pub fn withdraw(&mut self, resource_address: ResourceAddress) -> Bucket {
+            self.resources
+                .get_mut(&resource_address)
+                .unwrap()
+                .take_all()
         }
 
         pub fn check_contract(
@@ -161,10 +199,11 @@ mod marketplace {
             name: String,
             project_address: ComponentAddress,
             proof: NonFungibleProof,
+            fee_bucket: FungibleBucket,
         ) {
             let project = Global::<ProjectContract>::from(project_address);
             let (
-                marketplace_address,
+                marketplaces,
                 admin_badge,
                 contract_amount,
                 contract_resource,
@@ -173,13 +212,25 @@ mod marketplace {
             ) = project.data();
             proof.check(admin_badge);
             assert!(
-                marketplace_address == Runtime::global_address(),
-                "[Add Project]: Marketplace address not the same"
+                marketplaces.contains_key(&Runtime::global_address()),
+                "[Add Project]: Marketplace addresses must be the same"
             );
             assert!(is_joinable, "[Add Project]: Not joinable");
             let market = self.projects.get(&name).unwrap();
-            market.check_contract(contract_address, contract_amount, contract_resource);
+
+            let market_fee =
+                market.check_contract(contract_address, contract_amount, contract_resource);
+            assert!(
+                fee_bucket.amount() == market_fee,
+                "[Add Project]: Missing fee"
+            );
+            assert!(
+                fee_bucket.resource_address() == contract_resource,
+                "[Add Project]: Resources must be the same"
+            );
             market.list(contract_address);
+            drop(market);
+            self.deposit(Bucket::from(fee_bucket));
         }
 
         pub fn add_job(
@@ -187,10 +238,11 @@ mod marketplace {
             name: String,
             job_address: ComponentAddress,
             proof: NonFungibleProof,
+            fee_bucket: FungibleBucket,
         ) {
             let job = Global::<JobContract>::from(job_address);
             let (
-                marketplace_address,
+                marketplaces,
                 admin_badge,
                 contract_amount,
                 contract_resource,
@@ -199,13 +251,22 @@ mod marketplace {
             ) = job.data();
             proof.check(admin_badge);
             assert!(
-                marketplace_address == Runtime::global_address(),
-                "[Add Job]: Marketplace address not the same"
+                marketplaces.contains_key(&Runtime::global_address()),
+                "[Add Job]: Marketplace addresses must be the same"
             );
             assert!(is_joinable, "[Add Job]: Not joinable");
             let market = self.jobs.get(&name).unwrap();
-            market.check_contract(contract_address, contract_amount, contract_resource);
+
+            let market_fee =
+                market.check_contract(contract_address, contract_amount, contract_resource);
+            assert!(fee_bucket.amount() == market_fee, "[Add Job]: Missing fee");
+            assert!(
+                fee_bucket.resource_address() == contract_resource,
+                "[Add job]: Resources must be the same"
+            );
             market.list(contract_address);
+            drop(market);
+            self.deposit(Bucket::from(fee_bucket));
         }
     }
 }

@@ -1,10 +1,11 @@
 use crate::contract_types::*;
 use crate::job_contract::job_contract::JobContract;
+use crate::marketplace::marketplace::Marketplace;
 use crate::project_contract::project_contract::ProjectContract;
 use scrypto::prelude::*;
 
 #[blueprint]
-#[types(AppData, MemberData)]
+#[types(MemberData, String, TeamData)]
 mod member {
     enable_method_auth! {
         roles {
@@ -17,15 +18,18 @@ mod member {
             deposit => restrict_to: [admin];
             withdraw => restrict_to: [admin];
             update_members => restrict_to: [admin];
-            update_app => restrict_to: [admin];
-            remove_app => restrict_to: [admin];
+            update_team => restrict_to: [admin];
+            remove_team => restrict_to: [admin];
             details => restrict_to: [admin];
+            get_badge => PUBLIC;
         }
     }
 
     struct Member {
         admin_badge: ResourceAddress,
+        badge_manager: ResourceManager,
         member_handle: String,
+        marketplace: Global<Marketplace>,
 
         project_admins: KeyValueStore<String, Option<ComponentAddress>>,
         project_admins_total: Decimal,
@@ -39,7 +43,7 @@ mod member {
 
         member_badges: KeyValueStore<ResourceAddress, ()>,
         member_components: KeyValueStore<ComponentAddress, ()>,
-        apps: KeyValueStore<String, AppData>,
+        apps: KeyValueStore<String, TeamData>,
         resources: KeyValueStore<ResourceAddress, Vault>,
         details: KeyValueStore<String, String>,
     }
@@ -48,15 +52,18 @@ mod member {
         pub fn instantiate(
             dapp_address: ComponentAddress,
             member_handle: String,
+            icon_url: String,
+            markets: Vec<String>,
         ) -> (Global<Member>, NonFungibleBucket) {
             let (address_reservation, component_address) =
                 Runtime::allocate_component_address(Member::blueprint_id());
 
             let badge_bucket = Self::nft_builder::<MemberData>(
                 "Diamond Pay: Member Badge",
-                "Badge containing information on the contract",
+                "Badge used for contracts and authentication",
                 &rule!(require(global_caller(component_address))),
                 component_address,
+                &icon_url,
                 vec![(
                     StringNonFungibleLocalId::new(&member_handle).unwrap(),
                     MemberData {
@@ -66,9 +73,21 @@ mod member {
             );
             let admin_badge = badge_bucket.resource_address();
 
+            let marketplace = Marketplace::instantiate(
+                admin_badge,
+                member_handle.clone(),
+                dapp_address,
+                markets,
+                dec!(0),
+                dec!(0),
+                XRD,
+            );
+
             let component = Self {
                 admin_badge,
+                badge_manager: badge_bucket.resource_manager(),
                 member_handle,
+                marketplace,
 
                 project_admins: KeyValueStore::new(),
                 project_admins_total: dec!(0),
@@ -82,7 +101,7 @@ mod member {
 
                 member_badges: KeyValueStore::new(),
                 member_components: KeyValueStore::new(),
-                apps: KeyValueStore::new(),
+                apps: KeyValueStore::<String, TeamData>::new_with_registered_type(),
                 resources: KeyValueStore::new(),
                 details: KeyValueStore::new(),
             }
@@ -184,12 +203,7 @@ mod member {
 
         pub fn update_members(&mut self, contacts: Vec<ResourceAddress>, is_remove: bool) {
             for contact_badge in contacts {
-                let global_address: GlobalAddress = ResourceManager::from(contact_badge)
-                    .get_metadata("member_address")
-                    .unwrap()
-                    .unwrap();
-                let contact_address = ComponentAddress::try_from(global_address).unwrap();
-                let contact = Global::<Member>::from(contact_address);
+                let contact = Self::badge_to_member(contact_badge);
                 if is_remove {
                     self.member_badges.remove(&contact_badge);
                     self.member_components.remove(&contact.address());
@@ -200,45 +214,48 @@ mod member {
             }
         }
 
-        pub fn update_app(
+        pub fn update_team(
             &mut self,
             name: String,
-            icon_url: String,
-            app_handle: String,
-            subtitle: String,
             details: HashMap<String, String>,
+            team_badge: Option<ResourceAddress>,
         ) {
-            let has_app = self.apps.get(&name).is_some();
-            if has_app {
-                // update app while preserving insert order
+            if team_badge.is_some() {
+                // verify that badge is a Member badge
+                Self::badge_to_member(team_badge.unwrap());
+            }
+
+            let has_team = self.apps.get(&name).is_some();
+            if has_team {
+                // update while preserving insert order
                 let mut app = self.apps.get_mut(&name).unwrap();
-                app.name = name;
-                app.icon_url = icon_url;
-                app.app_handle = app_handle;
-                app.subtitle = subtitle;
                 app.details = details;
+                app.team_badge = team_badge;
             } else {
                 self.apps.insert(
-                    name.clone(),
-                    AppData {
-                        name,
-                        icon_url,
-                        app_handle,
-                        subtitle,
+                    name,
+                    TeamData {
                         details,
+                        team_badge,
                     },
                 );
             }
         }
 
-        pub fn remove_app(&mut self, name: String) {
+        pub fn remove_team(&mut self, name: String) {
             self.apps.remove(&name);
         }
 
-        pub fn details(&mut self, details: HashMap<String, String>) {
+        pub fn details(&mut self, details: HashMap<String, String>, icon_url: String) {
             for (key, value) in details.iter() {
                 self.details.insert(key.to_owned(), value.to_owned());
             }
+            self.badge_manager
+                .set_metadata("icon_url", Url::of(icon_url));
+        }
+
+        pub fn get_badge(&self) -> ResourceAddress {
+            self.admin_badge
         }
 
         // Private functions
@@ -248,17 +265,24 @@ mod member {
             description: &str,
             access_rule: &AccessRule,
             member_address: ComponentAddress,
+            icon_url: &str,
             entries: Vec<(StringNonFungibleLocalId, D)>,
         ) -> NonFungibleBucket {
             ResourceBuilder::new_string_non_fungible_with_registered_type::<D>(OwnerRole::None)
                 .metadata(metadata! {
+                    roles {
+                        metadata_setter => access_rule.clone();
+                        metadata_setter_updater => rule!(deny_all);
+                        metadata_locker => rule!(deny_all);
+                        metadata_locker_updater => rule!(deny_all);
+                    },
                     init {
                       "name" => name, locked;
                       "description" => description, locked;
                       "tags" => ["badge"], locked;
-                      "icon_url" => Url::of(ICON_URL), locked;
+                      "icon_url" => Url::of(icon_url), updatable;
                       "info_url" => Url::of(INFO_URL), locked;
-                      "member_address" => GlobalAddress::from(member_address), locked;
+                      MEMBER_ADDRESS => GlobalAddress::from(member_address), locked;
                     }
                 })
                 .mint_roles(mint_roles! {
@@ -266,6 +290,21 @@ mod member {
                     minter_updater => rule!(deny_all);
                 })
                 .mint_initial_supply(entries)
+        }
+
+        // use member_address from metadata to avoid doing extra gateway api call to get nft data
+        fn badge_to_member(contact_badge: ResourceAddress) -> Global<Member> {
+            let global_address: GlobalAddress = ResourceManager::from(contact_badge)
+                .get_metadata(MEMBER_ADDRESS)
+                .unwrap()
+                .unwrap();
+            let contact_address = ComponentAddress::try_from(global_address).unwrap();
+            let contact = Global::<Member>::from(contact_address);
+            assert!(
+                contact_badge == contact.get_badge(),
+                "[Badge to Member]: Invalid"
+            );
+            contact
         }
     }
 }

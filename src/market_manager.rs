@@ -8,6 +8,7 @@ mod market_manager {
         name: String,
         kind: ContractKind,
         minimum: Decimal,
+        fee: Decimal,
         resource_address: ResourceAddress,
         contracts: KeyValueStore<ComponentAddress, ()>,
         listings: KeyValueStore<String, Option<ComponentAddress>>,
@@ -20,12 +21,14 @@ mod market_manager {
             name: String,
             kind: ContractKind,
             minimum: Decimal,
+            fee: Decimal,
             resource_address: ResourceAddress,
         ) -> Owned<MarketManager> {
             let component = Self {
                 name,
                 kind,
                 minimum,
+                fee,
                 resource_address,
                 contracts: KeyValueStore::new(),
                 listings: KeyValueStore::new(),
@@ -42,7 +45,7 @@ mod market_manager {
             contract_address: ComponentAddress,
             contract_amount: Decimal,
             contract_resource: ResourceAddress,
-        ) {
+        ) -> Decimal {
             let contract = self.contracts.get(&contract_address);
             assert!(contract.is_none(), "[Check Contract]: Already added");
             assert!(contract_amount >= self.minimum, "[Mint]: Less than minimum");
@@ -50,6 +53,7 @@ mod market_manager {
                 contract_resource == self.resource_address,
                 "[Mint]: Different resource"
             );
+            self.fee
         }
 
         pub fn list(&mut self, contract_address: ComponentAddress) {
@@ -60,8 +64,10 @@ mod market_manager {
                 .insert(format!("{new_total}"), Some(contract_address));
         }
 
-        pub fn remove(&mut self, key: String) {
-            self.listings.insert(key, None)
+        pub fn remove(&mut self, key: String) -> ComponentAddress {
+            let contract_address = self.listings.get(&key).unwrap().unwrap();
+            self.listings.insert(key, None);
+            contract_address
         }
 
         pub fn update(&mut self, name: String, minimum: Decimal, details: HashMap<String, String>) {

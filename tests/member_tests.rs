@@ -93,13 +93,19 @@ fn test() {
         &mut test_runner,
         app.admin.clone(),
         "details",
-        manifest_args!(HashMap::from([("description", "New Description")])),
+        manifest_args!(
+            HashMap::from([("description", "New Description")]),
+            "https://google.com"
+        ),
     );
     member_test(
         &mut test_runner,
         app.admin.clone(),
         "details",
-        manifest_args!(HashMap::from([("description", "New Description 2")])),
+        manifest_args!(
+            HashMap::from([("description", "New Description 2")]),
+            "https://reddit.com"
+        ),
     );
     member_deposit(
         &mut test_runner,
@@ -112,54 +118,38 @@ fn test() {
         &mut test_runner,
         app.admin.clone(),
         "update_members",
-        manifest_args!(
-            vec!(app.admin.resource_address, app.member.resource_address),
-            false
-        ),
+        manifest_args!(vec!(app.member.resource_address), false),
     );
     member_test(
         &mut test_runner,
         app.admin.clone(),
         "update_members",
-        manifest_args!(
-            vec!(app.admin.resource_address, app.member.resource_address),
-            true
-        ),
+        manifest_args!(vec!(app.member.resource_address), true),
     );
     member_test(
         &mut test_runner,
         app.admin.clone(),
-        "update_app",
+        "update_team",
         manifest_args!(
             "App Name",
-            "https://google.com",
-            "app_handle",
-            "Subtitle goes here",
-            HashMap::from([
-                ("description", "Test description goes here"),
-                ("social_urls", "https://google.com"),
-                ("link_urls", "https://google.com"),
-                ("image_urls", "https://google.com"),
-                ("video_ids", "id1"),
-            ])
+            HashMap::from([("description", "Test description goes here")]),
+            None::<ResourceAddress>
         ),
     );
     member_test(
         &mut test_runner,
         app.admin.clone(),
-        "update_app",
+        "update_team",
         manifest_args!(
             "App Name",
-            "https://google.com",
-            "app_handle_updated",
-            "Subtitle goes here updated",
-            HashMap::from([("description", "Updated here"),])
+            HashMap::from([("description", "Updated here")]),
+            Some(app.member.resource_address)
         ),
     );
     member_test(
         &mut test_runner,
         app.admin.clone(),
-        "remove_app",
+        "remove_team",
         manifest_args!("App Name",),
     );
 }
