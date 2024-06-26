@@ -237,7 +237,6 @@ fn job_list(
     member: common::MemberData,
     job_address: ComponentAddress,
     marketplace_address: ComponentAddress,
-    resource_address: ResourceAddress,
 ) {
     let public_key = member.public_key;
     let manifest = ManifestBuilder::new()
@@ -250,9 +249,9 @@ fn job_list(
         .call_method(
             member.account_address,
             "withdraw",
-            manifest_args!(resource_address, dec!(100)),
+            manifest_args!(XRD, dec!(100)),
         )
-        .take_from_worktop(resource_address, dec!(100), "bucket1")
+        .take_from_worktop(XRD, dec!(100), "bucket1")
         .call_method(
             job_address,
             "list",
@@ -391,14 +390,20 @@ fn test() {
             app.admin.clone(),
             job_address,
             app.marketplace_address,
-            app.resource_address,
         );
         job_test(
             &mut test_runner,
             app.admin.clone(),
             app.marketplace_address,
             "withdraw",
-            manifest_args!(app.resource_address),
+            manifest_args!(XRD),
+        );
+        job_test(
+            &mut test_runner,
+            app.admin.clone(),
+            app.marketplace_address,
+            "remove_contract",
+            manifest_args!(job_address, "Test", false),
         );
     }
 

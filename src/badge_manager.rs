@@ -5,20 +5,20 @@ use scrypto::prelude::*;
 #[types(BadgeData, String, TxData)]
 mod badge_manager {
     struct BadgeManager {
-        admin_manager: ResourceManager, // ResourceManager to mint admin nft with contract data
-        member_manager: ResourceManager, // ResourceManager to mint member nfts with contract data
-        txs: KeyValueStore<String, TxData>,
-        txs_total: Decimal,
-        years: HashSet<Decimal>, // which years transactions have taken place
-        kind: ContractKind,      // kind of contract: Project | Job
+        admin_manager: ResourceManager, // Mints an admin nft with contract data
+        member_manager: ResourceManager, // Mints member nfts with contract data
+        txs: KeyValueStore<String, TxData>, // Stores history of all tx data
+        txs_total: Decimal,             // total number of txs
+        years: HashSet<Decimal>,        // which years transactions have taken place
+        kind: ContractKind,             // kind of contract: Project | Job
     }
 
     impl BadgeManager {
         /// Creates a new BadgeManager
         ///
         /// BadgeManagers are used for the following:
-        /// 1. Contract Data Nfts - issued to the admin and members of the contract
-        /// 2. Transaction Nfts - tracks all transactions executed and stores them
+        /// 1. Badge Data Nfts - issued to the admin and members of the contract
+        /// 2. Transaction History - tracks all transactions executed and stores them
         ///
         /// # Arguments
         ///
@@ -53,7 +53,7 @@ mod badge_manager {
                 &auth_rule,
             );
 
-            let component = Self {
+            Self {
                 admin_manager,
                 member_manager,
                 txs: KeyValueStore::<String, TxData>::new_with_registered_type(),
@@ -61,9 +61,7 @@ mod badge_manager {
                 years: HashSet::new(),
                 kind,
             }
-            .instantiate();
-
-            component
+            .instantiate()
         }
 
         pub fn is_new(&self) -> bool {

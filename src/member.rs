@@ -1,6 +1,5 @@
 use crate::contract_types::*;
 use crate::job_contract::job_contract::JobContract;
-use crate::marketplace::marketplace::Marketplace;
 use crate::project_contract::project_contract::ProjectContract;
 use scrypto::prelude::*;
 
@@ -29,7 +28,6 @@ mod member {
         admin_badge: ResourceAddress,
         badge_manager: ResourceManager,
         member_handle: String,
-        marketplace: Global<Marketplace>,
 
         project_admins: KeyValueStore<String, Option<ComponentAddress>>,
         project_admins_total: Decimal,
@@ -53,7 +51,6 @@ mod member {
             dapp_address: ComponentAddress,
             member_handle: String,
             icon_url: String,
-            markets: Vec<String>,
         ) -> (Global<Member>, NonFungibleBucket) {
             let (address_reservation, component_address) =
                 Runtime::allocate_component_address(Member::blueprint_id());
@@ -73,21 +70,10 @@ mod member {
             );
             let admin_badge = badge_bucket.resource_address();
 
-            let marketplace = Marketplace::instantiate(
-                admin_badge,
-                member_handle.clone(),
-                dapp_address,
-                markets,
-                dec!(0),
-                dec!(0),
-                XRD,
-            );
-
             let component = Self {
                 admin_badge,
                 badge_manager: badge_bucket.resource_manager(),
                 member_handle,
-                marketplace,
 
                 project_admins: KeyValueStore::new(),
                 project_admins_total: dec!(0),

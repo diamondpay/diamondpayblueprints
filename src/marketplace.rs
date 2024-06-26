@@ -142,11 +142,16 @@ mod marketplace {
             }
         }
 
-        pub fn remove_contract(&mut self, key: String, name: String, is_project: bool) {
+        pub fn remove_contract(
+            &mut self,
+            component_address: ComponentAddress,
+            name: String,
+            is_project: bool,
+        ) {
             if is_project {
-                self.projects.get(&name).unwrap().remove(key);
+                self.projects.get(&name).unwrap().remove(component_address);
             } else {
-                self.jobs.get(&name).unwrap().remove(key);
+                self.jobs.get(&name).unwrap().remove(component_address);
             }
         }
 
@@ -225,8 +230,8 @@ mod marketplace {
                 "[Add Project]: Missing fee"
             );
             assert!(
-                fee_bucket.resource_address() == contract_resource,
-                "[Add Project]: Resources must be the same"
+                fee_bucket.resource_address() == XRD,
+                "[Add Project]: Fee must be XRD"
             );
             market.list(contract_address);
             drop(market);
@@ -261,8 +266,8 @@ mod marketplace {
                 market.check_contract(contract_address, contract_amount, contract_resource);
             assert!(fee_bucket.amount() == market_fee, "[Add Job]: Missing fee");
             assert!(
-                fee_bucket.resource_address() == contract_resource,
-                "[Add job]: Resources must be the same"
+                fee_bucket.resource_address() == XRD,
+                "[Add job]: Fee must be XRD"
             );
             market.list(contract_address);
             drop(market);

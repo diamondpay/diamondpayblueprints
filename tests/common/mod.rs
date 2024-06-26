@@ -53,16 +53,12 @@ fn create_member(
 
     let manifest = ManifestBuilder::new()
         .lock_fee_from_faucet()
+        .get_free_xrd_from_faucet()
         .call_function(
             package_address,
             "Member",
             "instantiate",
-            manifest_args!(
-                account_address,
-                handle,
-                "https://google.com",
-                Vec::<String>::new()
-            ),
+            manifest_args!(account_address, handle, "https://google.com"),
         )
         .call_method(
             account_address,

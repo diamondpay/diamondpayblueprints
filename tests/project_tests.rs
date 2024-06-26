@@ -237,7 +237,6 @@ fn project_list(
     member: common::MemberData,
     project_address: ComponentAddress,
     marketplace_address: ComponentAddress,
-    resource_address: ResourceAddress,
 ) {
     let public_key = member.public_key;
     let manifest = ManifestBuilder::new()
@@ -250,9 +249,9 @@ fn project_list(
         .call_method(
             member.account_address,
             "withdraw",
-            manifest_args!(resource_address, dec!(100)), // fee
+            manifest_args!(XRD, dec!(100)), // fee
         )
-        .take_from_worktop(resource_address, dec!(100), "bucket1")
+        .take_from_worktop(XRD, dec!(100), "bucket1")
         .call_method(
             project_address,
             "list",
@@ -450,14 +449,20 @@ fn test() {
             app.admin.clone(),
             project_address,
             app.marketplace_address,
-            app.resource_address,
         );
         project_test(
             &mut test_runner,
             app.admin.clone(),
             app.marketplace_address,
             "withdraw",
-            manifest_args!(app.resource_address),
+            manifest_args!(XRD),
+        );
+        project_test(
+            &mut test_runner,
+            app.admin.clone(),
+            app.marketplace_address,
+            "remove_contract",
+            manifest_args!(project_address, "Test", true),
         );
     }
 
