@@ -95,7 +95,8 @@ fn test() {
         "details",
         manifest_args!(
             HashMap::from([("description", "New Description")]),
-            "https://google.com"
+            "https://google.com",
+            true,
         ),
     );
     member_test(
@@ -104,7 +105,8 @@ fn test() {
         "details",
         manifest_args!(
             HashMap::from([("description", "New Description 2")]),
-            "https://reddit.com"
+            "https://reddit.com",
+            false
         ),
     );
     member_deposit(

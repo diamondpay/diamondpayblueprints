@@ -1,5 +1,6 @@
 use crate::contract_types::*;
 use crate::job_contract::job_contract::JobContract;
+use crate::list::list::List;
 use crate::project_contract::project_contract::ProjectContract;
 use scrypto::prelude::*;
 
@@ -13,7 +14,10 @@ mod member {
         methods {
             add_project => PUBLIC;
             add_job => PUBLIC;
+            project_request => PUBLIC;
+            job_request => PUBLIC;
             remove_contract => restrict_to: [admin];
+            remove_request => restrict_to: [admin];
             deposit => restrict_to: [admin];
             withdraw => restrict_to: [admin];
             update_members => restrict_to: [admin];
@@ -29,20 +33,18 @@ mod member {
         badge_manager: ResourceManager,
         member_handle: String,
 
-        project_admins: KeyValueStore<String, Option<ComponentAddress>>,
-        project_admins_total: Decimal,
-        project_members: KeyValueStore<String, Option<ComponentAddress>>,
-        project_members_total: Decimal,
-        job_admins: KeyValueStore<String, Option<ComponentAddress>>,
-        job_admins_total: Decimal,
-        job_members: KeyValueStore<String, Option<ComponentAddress>>,
-        job_members_total: Decimal,
-        contracts: KeyValueStore<ComponentAddress, ()>,
+        project_admins: Owned<List>,
+        project_members: Owned<List>,
+        project_requests: Owned<List>,
+        job_admins: Owned<List>,
+        job_members: Owned<List>,
+        job_requests: Owned<List>,
 
         member_badges: KeyValueStore<ResourceAddress, ()>,
         member_components: KeyValueStore<ComponentAddress, ()>,
         apps: KeyValueStore<String, TeamData>,
         resources: KeyValueStore<ResourceAddress, Vault>,
+        is_any_invite: bool,
         details: KeyValueStore<String, String>,
     }
 
@@ -75,20 +77,18 @@ mod member {
                 badge_manager: badge_bucket.resource_manager(),
                 member_handle,
 
-                project_admins: KeyValueStore::new(),
-                project_admins_total: dec!(0),
-                project_members: KeyValueStore::new(),
-                project_members_total: dec!(0),
-                job_admins: KeyValueStore::new(),
-                job_admins_total: dec!(0),
-                job_members: KeyValueStore::new(),
-                job_members_total: dec!(0),
-                contracts: KeyValueStore::new(),
+                project_admins: List::new(),
+                project_members: List::new(),
+                project_requests: List::new(),
+                job_admins: List::new(),
+                job_members: List::new(),
+                job_requests: List::new(),
 
                 member_badges: KeyValueStore::new(),
                 member_components: KeyValueStore::new(),
                 apps: KeyValueStore::<String, TeamData>::new_with_registered_type(),
                 resources: KeyValueStore::new(),
+                is_any_invite: false,
                 details: KeyValueStore::new(),
             }
             .instantiate()
@@ -111,58 +111,99 @@ mod member {
         }
 
         pub fn add_project(&mut self, project_address: ComponentAddress) {
-            assert!(
-                self.contracts.get(&project_address).is_none(),
-                "[Add Project]: Already Added"
-            );
             let project = Global::<ProjectContract>::from(project_address);
             let role = project.role(self.admin_badge);
-            let data = Some(project_address);
-            if role == ContractRole::Admin {
-                let new_total = self.project_admins_total + 1;
-                self.project_admins_total = new_total;
-                self.project_admins.insert(format!("{new_total}"), data);
-            } else {
-                let new_total = self.project_members_total + 1;
-                self.project_members_total = new_total;
-                self.project_members.insert(format!("{new_total}"), data);
+            match role {
+                ContractRole::Admin => self.project_admins.add(project_address),
+                ContractRole::Member => self.project_members.add(project_address),
+                ContractRole::Nonmember => Runtime::panic(String::from("[Contract]: Not a member")),
             }
-            self.contracts.insert(project_address, ());
         }
 
         pub fn add_job(&mut self, job_address: ComponentAddress) {
-            assert!(
-                self.contracts.get(&job_address).is_none(),
-                "[Add Job]: Already Added"
-            );
             let job = Global::<JobContract>::from(job_address);
             let role = job.role(self.admin_badge);
-            let data = Some(job_address);
-            if role == ContractRole::Admin {
-                let new_total = self.job_admins_total + 1;
-                self.job_admins_total = new_total;
-                self.job_admins.insert(format!("{new_total}"), data);
-            } else {
-                let new_total = self.job_members_total + 1;
-                self.job_members_total = new_total;
-                self.job_members.insert(format!("{new_total}"), data);
+            match role {
+                ContractRole::Admin => self.job_admins.add(job_address),
+                ContractRole::Member => self.job_members.add(job_address),
+                ContractRole::Nonmember => Runtime::panic(String::from("[Contract]: Not a member")),
             }
-            self.contracts.insert(job_address, ());
         }
 
-        pub fn remove_contract(&mut self, key: String, is_project: bool, is_admin: bool) {
+        pub fn project_request(
+            &mut self,
+            proof: NonFungibleProof,
+            project_address: ComponentAddress,
+        ) {
+            let proof_badge = proof.resource_address();
+            let has_badge = self.member_badges.get(&proof_badge).is_some();
+            assert!(
+                has_badge || self.is_any_invite,
+                "[Request]: Not in Contacts"
+            );
+
+            let project = Global::<ProjectContract>::from(project_address);
+            let proof_role = project.role(proof_badge);
+            assert!(
+                proof_role == ContractRole::Admin,
+                "[Request]: Not contract admin"
+            );
+            let member_role = project.role(self.admin_badge);
+            assert!(
+                member_role == ContractRole::Nonmember,
+                "[Request]: Already a member"
+            );
+            self.project_requests.add(project_address);
+        }
+
+        pub fn job_request(&mut self, proof: NonFungibleProof, job_address: ComponentAddress) {
+            let proof_badge = proof.resource_address();
+            let has_badge = self.member_badges.get(&proof_badge).is_some();
+            assert!(
+                has_badge || self.is_any_invite,
+                "[Request]: Not in Contacts"
+            );
+
+            let job = Global::<JobContract>::from(job_address);
+            let proof_role = job.role(proof_badge);
+            assert!(
+                proof_role == ContractRole::Admin,
+                "[Request]: Not contract admin"
+            );
+            let member_role = job.role(self.admin_badge);
+            assert!(
+                member_role == ContractRole::Nonmember,
+                "[Request]: Already a member"
+            );
+            self.job_requests.add(job_address);
+        }
+
+        pub fn remove_contract(
+            &mut self,
+            address: ComponentAddress,
+            is_project: bool,
+            is_admin: bool,
+        ) {
             if is_project {
                 if is_admin {
-                    self.project_admins.insert(key, None);
+                    self.project_admins.remove(address);
                 } else {
-                    self.project_members.insert(key, None);
+                    self.project_members.remove(address);
                 }
             } else {
                 if is_admin {
-                    self.job_admins.insert(key, None);
+                    self.job_admins.remove(address);
                 } else {
-                    self.job_members.insert(key, None);
+                    self.job_members.remove(address);
                 }
+            }
+        }
+
+        pub fn remove_request(&mut self, address: ComponentAddress, is_project: bool) {
+            if is_project {
+                self.project_requests.remove(address);
+            } else {
+                self.job_requests.remove(address);
             }
         }
 
@@ -232,12 +273,18 @@ mod member {
             self.apps.remove(&name);
         }
 
-        pub fn details(&mut self, details: HashMap<String, String>, icon_url: String) {
+        pub fn details(
+            &mut self,
+            details: HashMap<String, String>,
+            icon_url: String,
+            is_any_invite: bool,
+        ) {
             for (key, value) in details.iter() {
                 self.details.insert(key.to_owned(), value.to_owned());
             }
             self.badge_manager
                 .set_metadata("icon_url", Url::of(icon_url));
+            self.is_any_invite = is_any_invite;
         }
 
         pub fn get_badge(&self) -> ResourceAddress {

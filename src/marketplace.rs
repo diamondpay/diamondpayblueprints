@@ -180,22 +180,19 @@ mod marketplace {
             &mut self,
             name: String,
             kind: ContractKind,
-            contract_address: ComponentAddress,
             contract_amount: Decimal,
             contract_resource: ResourceAddress,
         ) {
             if kind == ContractKind::Project {
-                self.projects.get(&name).unwrap().check_contract(
-                    contract_address,
-                    contract_amount,
-                    contract_resource,
-                );
+                self.projects
+                    .get(&name)
+                    .unwrap()
+                    .check_contract(contract_amount, contract_resource);
             } else {
-                self.jobs.get(&name).unwrap().check_contract(
-                    contract_address,
-                    contract_amount,
-                    contract_resource,
-                );
+                self.jobs
+                    .get(&name)
+                    .unwrap()
+                    .check_contract(contract_amount, contract_resource);
             }
         }
 
@@ -223,8 +220,7 @@ mod marketplace {
             assert!(is_joinable, "[Add Project]: Not joinable");
             let market = self.projects.get(&name).unwrap();
 
-            let market_fee =
-                market.check_contract(contract_address, contract_amount, contract_resource);
+            let market_fee = market.check_contract(contract_amount, contract_resource);
             assert!(
                 fee_bucket.amount() == market_fee,
                 "[Add Project]: Missing fee"
@@ -262,8 +258,7 @@ mod marketplace {
             assert!(is_joinable, "[Add Job]: Not joinable");
             let market = self.jobs.get(&name).unwrap();
 
-            let market_fee =
-                market.check_contract(contract_address, contract_amount, contract_resource);
+            let market_fee = market.check_contract(contract_amount, contract_resource);
             assert!(fee_bucket.amount() == market_fee, "[Add Job]: Missing fee");
             assert!(
                 fee_bucket.resource_address() == XRD,

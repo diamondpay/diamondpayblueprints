@@ -32,6 +32,7 @@ mod job_contract {
         team_handle: String,
         contract_handle: String,
         contract_name: String,
+        image: Url,
         details: KeyValueStore<String, String>,
         marketplaces: HashMap<ComponentAddress, Vec<String>>,
 
@@ -63,6 +64,7 @@ mod job_contract {
             end_epoch: i64,
             vest_interval: i64,
             is_check_join: bool,
+            image: String,
             details: HashMap<String, String>,
         ) -> (Global<JobContract>, NonFungibleBucket) {
             let (address_reservation, component_address) =
@@ -90,6 +92,7 @@ mod job_contract {
                 team_handle,
                 contract_handle,
                 contract_name,
+                image: Url::of(image),
                 details: new_details,
                 marketplaces: HashMap::new(),
 
@@ -338,7 +341,6 @@ mod job_contract {
             marketplace.check_contract(
                 market_name.to_owned(),
                 ContractKind::Job,
-                Runtime::global_address(),
                 self.vesting_schedule.amount,
                 self.funds.resource_address(),
             );
@@ -396,7 +398,7 @@ mod job_contract {
             } else if is_member {
                 ContractRole::Member
             } else {
-                Runtime::panic(String::from("[Badge]: Not a member"))
+                ContractRole::Nonmember
             }
         }
 

@@ -33,6 +33,7 @@ fn create_project(
                     resource_address,
                     1662700716i64,
                     1725859156i64,
+                    "https://google.com",
                     HashMap::from([
                         ("obj_names", ""),
                         ("description", "Test description goes here"),
@@ -104,6 +105,32 @@ fn project_leave(
         .pop_from_auth_zone("proof")
         .call_method_with_name_lookup(project_address, "leave", |lookup| {
             (member.resource_address, lookup.proof("proof"))
+        })
+        .build();
+    let receipt = test_runner.execute_manifest(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)],
+    );
+    receipt.expect_commit_success();
+}
+
+fn project_request(
+    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
+    member: common::MemberData,
+    invited: ComponentAddress,
+    project_address: ComponentAddress,
+) {
+    let public_key = member.public_key;
+    let manifest = ManifestBuilder::new()
+        .lock_fee_from_faucet()
+        .create_proof_from_account_of_non_fungibles(
+            member.account_address,
+            member.resource_address,
+            vec![member.lid.clone()],
+        )
+        .pop_from_auth_zone("proof")
+        .call_method_with_name_lookup(invited, "project_request", |lookup| {
+            (lookup.proof("proof"), project_address)
         })
         .build();
     let receipt = test_runner.execute_manifest(
@@ -314,6 +341,19 @@ fn test_members() {
         project_address,
         "invite",
         manifest_args!(app.member.resource_address, "handle_2"),
+    );
+    project_test(
+        &mut test_runner,
+        app.member.clone(),
+        app.member.member_component,
+        "update_members",
+        manifest_args!(vec!(app.admin.resource_address), false),
+    );
+    project_request(
+        &mut test_runner,
+        app.admin,
+        app.member.member_component,
+        project_address,
     );
     project_join(&mut test_runner, app.member.clone(), project_address);
     project_leave(&mut test_runner, app.member.clone(), project_address);

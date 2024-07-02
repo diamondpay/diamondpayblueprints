@@ -1,18 +1,15 @@
 use crate::contract_types::ContractKind;
+use crate::list::list::List;
 use scrypto::prelude::*;
-
 #[blueprint]
 mod market_manager {
-
     struct MarketManager {
         name: String,
         kind: ContractKind,
         minimum: Decimal,
         fee: Decimal,
         resource_address: ResourceAddress,
-        contracts: KeyValueStore<ComponentAddress, String>,
-        listings: KeyValueStore<String, Option<ComponentAddress>>,
-        listings_total: Decimal,
+        list: Owned<List>,
         details: KeyValueStore<String, String>,
     }
 
@@ -30,9 +27,7 @@ mod market_manager {
                 minimum,
                 fee,
                 resource_address,
-                contracts: KeyValueStore::new(),
-                listings: KeyValueStore::new(),
-                listings_total: dec!(0),
+                list: List::new(),
                 details: KeyValueStore::new(),
             }
             .instantiate();
@@ -42,12 +37,9 @@ mod market_manager {
 
         pub fn check_contract(
             &self,
-            contract_address: ComponentAddress,
             contract_amount: Decimal,
             contract_resource: ResourceAddress,
         ) -> Decimal {
-            let contract = self.contracts.get(&contract_address);
-            assert!(contract.is_none(), "[Check Contract]: Already added");
             assert!(contract_amount >= self.minimum, "[Mint]: Less than minimum");
             assert!(
                 contract_resource == self.resource_address,
@@ -56,17 +48,12 @@ mod market_manager {
             self.fee
         }
 
-        pub fn list(&mut self, contract_address: ComponentAddress) {
-            let new_total = self.listings_total + 1;
-            self.listings_total = new_total;
-            let key = format!("{new_total}");
-            self.listings.insert(key.clone(), Some(contract_address));
-            self.contracts.insert(contract_address, key);
+        pub fn list(&mut self, address: ComponentAddress) {
+            self.list.add(address);
         }
 
-        pub fn remove(&mut self, contract_address: ComponentAddress) {
-            let key = self.contracts.get(&contract_address).unwrap();
-            self.listings.insert(key.clone(), None);
+        pub fn remove(&mut self, address: ComponentAddress) {
+            self.list.remove(address);
         }
 
         pub fn update(&mut self, name: String, minimum: Decimal, details: HashMap<String, String>) {

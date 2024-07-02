@@ -1,5 +1,6 @@
 mod badge_manager;
 mod contract_types;
+mod list;
 mod market_manager;
 mod vesting_schedule;
 

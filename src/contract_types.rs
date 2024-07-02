@@ -19,6 +19,7 @@ pub enum ContractKind {
 pub enum ContractRole {
     Admin,
     Member,
+    Nonmember,
 }
 
 #[derive(NonFungibleData, ScryptoSbor)]
