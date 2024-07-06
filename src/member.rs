@@ -14,10 +14,7 @@ mod member {
         methods {
             add_project => PUBLIC;
             add_job => PUBLIC;
-            project_request => PUBLIC;
-            job_request => PUBLIC;
             remove_contract => restrict_to: [admin];
-            remove_request => restrict_to: [admin];
             deposit => restrict_to: [admin];
             withdraw => restrict_to: [admin];
             update_members => restrict_to: [admin];
@@ -35,10 +32,8 @@ mod member {
 
         project_admins: Owned<List>,
         project_members: Owned<List>,
-        project_requests: Owned<List>,
         job_admins: Owned<List>,
         job_members: Owned<List>,
-        job_requests: Owned<List>,
 
         member_badges: KeyValueStore<ResourceAddress, ()>,
         member_components: KeyValueStore<ComponentAddress, ()>,
@@ -79,10 +74,8 @@ mod member {
 
                 project_admins: List::new(),
                 project_members: List::new(),
-                project_requests: List::new(),
                 job_admins: List::new(),
                 job_members: List::new(),
-                job_requests: List::new(),
 
                 member_badges: KeyValueStore::new(),
                 member_components: KeyValueStore::new(),
@@ -130,54 +123,6 @@ mod member {
             }
         }
 
-        pub fn project_request(
-            &mut self,
-            proof: NonFungibleProof,
-            project_address: ComponentAddress,
-        ) {
-            let proof_badge = proof.resource_address();
-            let has_badge = self.member_badges.get(&proof_badge).is_some();
-            assert!(
-                has_badge || self.is_any_invite,
-                "[Request]: Not in Contacts"
-            );
-
-            let project = Global::<ProjectContract>::from(project_address);
-            let proof_role = project.role(proof_badge);
-            assert!(
-                proof_role == ContractRole::Admin,
-                "[Request]: Not contract admin"
-            );
-            let member_role = project.role(self.admin_badge);
-            assert!(
-                member_role == ContractRole::Nonmember,
-                "[Request]: Already a member"
-            );
-            self.project_requests.add(project_address);
-        }
-
-        pub fn job_request(&mut self, proof: NonFungibleProof, job_address: ComponentAddress) {
-            let proof_badge = proof.resource_address();
-            let has_badge = self.member_badges.get(&proof_badge).is_some();
-            assert!(
-                has_badge || self.is_any_invite,
-                "[Request]: Not in Contacts"
-            );
-
-            let job = Global::<JobContract>::from(job_address);
-            let proof_role = job.role(proof_badge);
-            assert!(
-                proof_role == ContractRole::Admin,
-                "[Request]: Not contract admin"
-            );
-            let member_role = job.role(self.admin_badge);
-            assert!(
-                member_role == ContractRole::Nonmember,
-                "[Request]: Already a member"
-            );
-            self.job_requests.add(job_address);
-        }
-
         pub fn remove_contract(
             &mut self,
             address: ComponentAddress,
@@ -196,14 +141,6 @@ mod member {
                 } else {
                     self.job_members.remove(address);
                 }
-            }
-        }
-
-        pub fn remove_request(&mut self, address: ComponentAddress, is_project: bool) {
-            if is_project {
-                self.project_requests.remove(address);
-            } else {
-                self.job_requests.remove(address);
             }
         }
 

@@ -118,32 +118,6 @@ fn job_cancellation(
     receipt.expect_commit_success();
 }
 
-fn job_request(
-    test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
-    member: common::MemberData,
-    invited: ComponentAddress,
-    job_address: ComponentAddress,
-) {
-    let public_key = member.public_key;
-    let manifest = ManifestBuilder::new()
-        .lock_fee_from_faucet()
-        .create_proof_from_account_of_non_fungibles(
-            member.account_address,
-            member.resource_address,
-            vec![member.lid.clone()],
-        )
-        .pop_from_auth_zone("proof")
-        .call_method_with_name_lookup(invited, "job_request", |lookup| {
-            (lookup.proof("proof"), job_address)
-        })
-        .build();
-    let receipt = test_runner.execute_manifest(
-        manifest,
-        vec![NonFungibleGlobalId::from_public_key(&public_key)],
-    );
-    receipt.expect_commit_success();
-}
-
 fn job_join(
     test_runner: &mut LedgerSimulator<NoExtension, InMemorySubstateDatabase>,
     member: common::MemberData,
@@ -349,12 +323,6 @@ fn test_members() {
         app.member.member_component,
         "update_members",
         manifest_args!(vec!(app.admin.resource_address), false),
-    );
-    job_request(
-        &mut test_runner,
-        app.admin.clone(),
-        app.member.member_component,
-        job_address,
     );
     job_join(&mut test_runner, app.member.clone(), job_address);
 
