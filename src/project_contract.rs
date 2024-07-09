@@ -317,13 +317,14 @@ mod project_contract {
             &mut self,
             start_epoch: i64,
             end_epoch: i64,
+            image: String,
             details: HashMap<String, String>,
             is_joinable: bool,
         ) {
             assert!(end_epoch >= start_epoch, "[Instantiate]: Invalid Dates");
             self.start_epoch = start_epoch;
             self.end_epoch = end_epoch;
-
+            self.image = Url::of(image);
             for (key, value) in details.iter() {
                 self.details.insert(key.to_owned(), value.to_owned());
             }

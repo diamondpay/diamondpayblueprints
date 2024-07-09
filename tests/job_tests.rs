@@ -390,7 +390,10 @@ fn test() {
         app.admin.clone(),
         job_address,
         "details",
-        manifest_args!(HashMap::from([("description", "New Description")])),
+        manifest_args!(
+            "https://google.com",
+            HashMap::from([("description", "New Description")])
+        ),
     );
     if is_list {
         job_list(

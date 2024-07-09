@@ -268,7 +268,8 @@ mod job_contract {
             self.funds.put(funds);
         }
 
-        pub fn details(&mut self, details: HashMap<String, String>) {
+        pub fn details(&mut self, image: String, details: HashMap<String, String>) {
+            self.image = Url::of(image);
             for (key, value) in details.iter() {
                 self.details.insert(key.to_owned(), value.to_owned());
             }

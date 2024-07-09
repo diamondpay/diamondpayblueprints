@@ -447,6 +447,7 @@ fn test() {
         manifest_args!(
             1662700716i64,
             1725859156i64,
+            "https://google.com",
             HashMap::from([("obj_names", "Objective 1, Objective 2, Objective 3")]),
             true
         ),
