@@ -1,11 +1,11 @@
 use crate::badge_manager::badge_manager::BadgeManager;
-use crate::contract_types::*;
 use crate::marketplace::marketplace::Marketplace;
 use crate::member::member::Member;
+use crate::types::*;
 use scrypto::prelude::*;
 
 #[blueprint]
-mod project_contract {
+mod project {
     enable_method_auth! {
         roles {
             admin => updatable_by: [];
@@ -28,7 +28,7 @@ mod project_contract {
         }
     }
 
-    struct ProjectContract {
+    struct Project {
         badge_manager: Owned<BadgeManager>,
         team_handle: String,
         contract_handle: String,
@@ -61,7 +61,7 @@ mod project_contract {
         list_epoch: Decimal,
     }
 
-    impl ProjectContract {
+    impl Project {
         pub fn instantiate(
             dapp_address: ComponentAddress,
             member_address: Option<ComponentAddress>,
@@ -76,9 +76,9 @@ mod project_contract {
             image: String,
             category: String,
             details: HashMap<String, String>,
-        ) -> (Global<ProjectContract>, NonFungibleBucket) {
+        ) -> (Global<Project>, NonFungibleBucket) {
             let (address_reservation, component_address) =
-                Runtime::allocate_component_address(ProjectContract::blueprint_id());
+                Runtime::allocate_component_address(Project::blueprint_id());
 
             let admin_handle = Self::get_proof_id(&admin_badge, admin_proof);
             let badge_manager = BadgeManager::new(

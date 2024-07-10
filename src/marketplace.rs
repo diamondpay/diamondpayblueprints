@@ -1,7 +1,7 @@
 use crate::category::category::Category;
-use crate::contract_types::*;
-use crate::job_contract::job_contract::JobContract;
-use crate::project_contract::project_contract::ProjectContract;
+use crate::job::job::Job;
+use crate::project::project::Project;
+use crate::types::*;
 use scrypto::prelude::*;
 
 #[blueprint]
@@ -202,7 +202,7 @@ mod marketplace {
             proof: NonFungibleProof,
             fee_bucket: FungibleBucket,
         ) {
-            let project = Global::<ProjectContract>::from(project_address);
+            let project = Global::<Project>::from(project_address);
             let (
                 marketplaces,
                 category,
@@ -240,7 +240,7 @@ mod marketplace {
             proof: NonFungibleProof,
             fee_bucket: FungibleBucket,
         ) {
-            let job = Global::<JobContract>::from(job_address);
+            let job = Global::<Job>::from(job_address);
             let (
                 marketplaces,
                 category,

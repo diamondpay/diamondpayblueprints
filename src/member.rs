@@ -1,7 +1,7 @@
-use crate::contract_types::*;
-use crate::job_contract::job_contract::JobContract;
+use crate::job::job::Job;
 use crate::list::list::List;
-use crate::project_contract::project_contract::ProjectContract;
+use crate::project::project::Project;
+use crate::types::*;
 use scrypto::prelude::*;
 
 #[blueprint]
@@ -104,7 +104,7 @@ mod member {
         }
 
         pub fn add_project(&mut self, project_address: ComponentAddress) {
-            let project = Global::<ProjectContract>::from(project_address);
+            let project = Global::<Project>::from(project_address);
             let role = project.role(self.admin_badge);
             match role {
                 ContractRole::Admin => self.project_admins.add(project_address),
@@ -114,7 +114,7 @@ mod member {
         }
 
         pub fn add_job(&mut self, job_address: ComponentAddress) {
-            let job = Global::<JobContract>::from(job_address);
+            let job = Global::<Job>::from(job_address);
             let role = job.role(self.admin_badge);
             match role {
                 ContractRole::Admin => self.job_admins.add(job_address),

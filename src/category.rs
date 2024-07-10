@@ -1,5 +1,5 @@
-use crate::contract_types::ContractKind;
 use crate::list::list::List;
+use crate::types::ContractKind;
 use scrypto::prelude::*;
 
 #[blueprint]

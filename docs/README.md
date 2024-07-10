@@ -4,8 +4,8 @@
 
 - A set of Scrypto Blueprints (this repo) & a frontend app (another repo)
 - Blueprints allow for rewarding anyone using escrow
-  - ProjectContract: milestone-based project, allows multiple members, rewards given upon completion of an objective
-  - JobContract: long-term role, rewards a single member over a period of time
+  - Project: milestone-based project, allows multiple members, rewards given upon completion of an objective
+  - Job: long-term role, rewards a single member over a period of time
 
 ## Why Scrypto?
 

@@ -1,4 +1,4 @@
-use crate::contract_types::SEC_IN_DAY;
+use crate::types::SEC_IN_DAY;
 use scrypto::prelude::*;
 
 #[derive(ScryptoSbor)]

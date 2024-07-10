@@ -1,4 +1,4 @@
-use diamondpay::project_contract::project_contract_test::ProjectContractState;
+use diamondpay::project::project_test::ProjectState;
 use scrypto_test::prelude::*;
 mod common;
 
@@ -17,35 +17,30 @@ fn create_project(
             vec![admin.lid.clone()],
         )
         .pop_from_auth_zone("proof")
-        .call_function_with_name_lookup(
-            package_address,
-            "ProjectContract",
-            "instantiate",
-            |lookup| {
-                (
-                    admin.account_address,
-                    Some(admin.member_component),
-                    admin.resource_address,
-                    lookup.proof("proof"),
-                    "team_handle",
-                    "contract_handle",
-                    "Contract Name",
-                    resource_address,
-                    1662700716i64,
-                    1725859156i64,
-                    "https://google.com",
-                    "Blueprint",
-                    HashMap::from([
-                        ("obj_names", ""),
-                        ("description", "Test description goes here"),
-                        ("social_urls", "https://google.com"),
-                        ("link_urls", "https://google.com"),
-                        ("image_urls", "https://google.com"),
-                        ("video_ids", "id1"),
-                    ]),
-                )
-            },
-        )
+        .call_function_with_name_lookup(package_address, "Project", "instantiate", |lookup| {
+            (
+                admin.account_address,
+                Some(admin.member_component),
+                admin.resource_address,
+                lookup.proof("proof"),
+                "team_handle",
+                "contract_handle",
+                "Contract Name",
+                resource_address,
+                1662700716i64,
+                1725859156i64,
+                "https://google.com",
+                "Blueprint",
+                HashMap::from([
+                    ("obj_names", ""),
+                    ("description", "Test description goes here"),
+                    ("social_urls", "https://google.com"),
+                    ("link_urls", "https://google.com"),
+                    ("image_urls", "https://google.com"),
+                    ("video_ids", "id1"),
+                ]),
+            )
+        })
         .call_method(
             admin.account_address,
             "deposit_batch",
@@ -503,7 +498,7 @@ fn test() {
         project_withdraw(&mut test_runner, app.member.clone(), project_address);
     }
 
-    let p_state: ProjectContractState = test_runner.component_state(project_address);
+    let p_state: ProjectState = test_runner.component_state(project_address);
     assert!(p_state.completed.contains_key(&dec!(1)));
     assert!(p_state.completed.contains_key(&dec!(2)));
     assert!(p_state.completed.contains_key(&dec!(3)));

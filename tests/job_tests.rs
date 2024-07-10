@@ -1,4 +1,4 @@
-use diamondpay::job_contract::job_contract_test::JobContractState;
+use diamondpay::job::job_test::JobState;
 use scrypto_test::prelude::*;
 mod common;
 
@@ -21,7 +21,7 @@ fn create_job(
             vec![admin.lid.clone()],
         )
         .pop_from_auth_zone("proof")
-        .call_function_with_name_lookup(package_address, "JobContract", "instantiate", |lookup| {
+        .call_function_with_name_lookup(package_address, "Job", "instantiate", |lookup| {
             (
                 admin.account_address,
                 Some(admin.member_component),
@@ -431,7 +431,7 @@ fn test() {
         job_leave(&mut test_runner, app.member.clone(), job_address);
         job_cancellation(&mut test_runner, app.admin.clone(), job_address);
 
-        let j_state: JobContractState = test_runner.component_state(job_address);
+        let j_state: JobState = test_runner.component_state(job_address);
         println!("State: {:?}", j_state.vesting_schedule.withdrawn);
         assert!(j_state.vesting_schedule.withdrawn == dec!(4979.477));
     }

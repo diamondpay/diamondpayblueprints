@@ -1,10 +1,10 @@
 mod badge_manager;
 mod category;
-mod contract_types;
 mod list;
+mod types;
 mod vesting_schedule;
 
-pub mod job_contract;
+pub mod job;
 pub mod marketplace;
 pub mod member;
-pub mod project_contract;
+pub mod project;
