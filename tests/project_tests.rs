@@ -34,6 +34,7 @@ fn create_project(
                     1662700716i64,
                     1725859156i64,
                     "https://google.com",
+                    "Blueprint",
                     HashMap::from([
                         ("obj_names", ""),
                         ("description", "Test description goes here"),
@@ -253,15 +254,10 @@ fn project_list(
             manifest_args!(XRD, dec!(100)), // fee
         )
         .take_from_worktop(XRD, dec!(100), "bucket1")
-        .call_method(
-            project_address,
-            "list",
-            manifest_args!(marketplace_address, "Test"),
-        )
+        .call_method(project_address, "list", manifest_args!(marketplace_address))
         .pop_from_auth_zone("proof")
         .call_method_with_name_lookup(marketplace_address, "add_project", |lookup| {
             (
-                "Test",
                 project_address,
                 lookup.proof("proof"),
                 lookup.bucket("bucket1"),
@@ -338,19 +334,19 @@ fn test() {
         &mut test_runner,
         app.admin.clone(),
         app.marketplace_address,
-        "add_markets",
+        "add_category",
         manifest_args!(vec!["Main"], dec!(2000), dec!(100), app.resource_address),
     );
     project_test(
         &mut test_runner,
         app.admin.clone(),
         app.marketplace_address,
-        "update_market",
+        "update_category",
         manifest_args!(
             "Main",
             true,
             dec!(3000),
-            HashMap::from([("description", "Test")])
+            HashMap::from([("description", "A description")])
         ),
     );
 
@@ -471,7 +467,7 @@ fn test() {
             app.admin.clone(),
             app.marketplace_address,
             "remove_contract",
-            manifest_args!(project_address, "Test", true),
+            manifest_args!(project_address, "Blueprint", true),
         );
     }
 

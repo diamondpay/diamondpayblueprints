@@ -5,8 +5,6 @@ pub const ICON_URL: &str = "https://avatars.githubusercontent.com/u/162780104";
 pub const SEC_IN_DAY: i64 = 60i64 * 60i64 * 24i64;
 pub const MAX_MEMBERS: usize = 10;
 pub const MAX_OBJS: usize = 30;
-pub const MAX_MARKETPLACES: usize = 3;
-pub const MAX_MARKETS: usize = 3;
 pub const LOCK_PERIOD: i64 = 5;
 pub const MEMBER_ADDRESS: &str = "member_address";
 

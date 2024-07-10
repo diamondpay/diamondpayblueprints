@@ -103,7 +103,14 @@ fn create_marketplace(
                 admin.resource_address,
                 "App",
                 admin.account_address,
-                vec!("Test", "Test2"),
+                vec!(
+                    "Blueprint",
+                    "Audit",
+                    "Frontend",
+                    "Backend",
+                    "Design",
+                    "Growth"
+                ),
                 dec!(100), // minimum
                 dec!(100), // fee
                 resource_address

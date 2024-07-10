@@ -1,9 +1,10 @@
 use crate::contract_types::ContractKind;
 use crate::list::list::List;
 use scrypto::prelude::*;
+
 #[blueprint]
-mod market_manager {
-    struct MarketManager {
+mod category {
+    struct Category {
         name: String,
         kind: ContractKind,
         minimum: Decimal,
@@ -13,14 +14,14 @@ mod market_manager {
         details: KeyValueStore<String, String>,
     }
 
-    impl MarketManager {
+    impl Category {
         pub fn new(
             name: String,
             kind: ContractKind,
             minimum: Decimal,
             fee: Decimal,
             resource_address: ResourceAddress,
-        ) -> Owned<MarketManager> {
+        ) -> Owned<Category> {
             let component = Self {
                 name,
                 kind,

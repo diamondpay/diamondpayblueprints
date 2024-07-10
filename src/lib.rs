@@ -1,7 +1,7 @@
 mod badge_manager;
+mod category;
 mod contract_types;
 mod list;
-mod market_manager;
 mod vesting_schedule;
 
 pub mod job_contract;

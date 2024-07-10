@@ -1,6 +1,6 @@
+use crate::category::category::Category;
 use crate::contract_types::*;
 use crate::job_contract::job_contract::JobContract;
-use crate::market_manager::market_manager::MarketManager;
 use crate::project_contract::project_contract::ProjectContract;
 use scrypto::prelude::*;
 
@@ -12,8 +12,8 @@ mod marketplace {
         },
         methods {
             update => restrict_to: [admin];
-            add_markets => restrict_to: [admin];
-            update_market => restrict_to: [admin];
+            add_category => restrict_to: [admin];
+            update_category => restrict_to: [admin];
             remove_contract => restrict_to: [admin];
             deposit => restrict_to: [admin, SELF];
             withdraw => restrict_to: [admin, SELF];
@@ -26,8 +26,8 @@ mod marketplace {
     struct Marketplace {
         admin_badge: ResourceAddress,
         name: String,
-        projects: KeyValueStore<String, Owned<MarketManager>>,
-        jobs: KeyValueStore<String, Owned<MarketManager>>,
+        projects: KeyValueStore<String, Owned<Category>>,
+        jobs: KeyValueStore<String, Owned<Category>>,
         resources: KeyValueStore<ResourceAddress, Vault>,
         details: KeyValueStore<String, String>,
     }
@@ -37,32 +37,32 @@ mod marketplace {
             admin_badge: ResourceAddress,
             name: String,
             dapp_address: ComponentAddress,
-            markets: Vec<String>,
+            categories: Vec<String>,
             minimum: Decimal,
             fee: Decimal,
             resource_address: ResourceAddress,
         ) -> Global<Marketplace> {
-            let projects = KeyValueStore::<String, Owned<MarketManager>>::new();
-            let jobs = KeyValueStore::<String, Owned<MarketManager>>::new();
+            let projects = KeyValueStore::<String, Owned<Category>>::new();
+            let jobs = KeyValueStore::<String, Owned<Category>>::new();
 
-            for market in markets {
-                let all_projects = MarketManager::new(
-                    market.clone(),
+            for category in categories {
+                let all_projects = Category::new(
+                    category.clone(),
                     ContractKind::Project,
                     minimum,
                     fee,
                     resource_address,
                 );
-                projects.insert(market.clone(), all_projects);
+                projects.insert(category.clone(), all_projects);
 
-                let all_jobs = MarketManager::new(
-                    market.clone(),
+                let all_jobs = Category::new(
+                    category.clone(),
                     ContractKind::Job,
                     minimum,
                     fee,
                     resource_address,
                 );
-                jobs.insert(market, all_jobs);
+                jobs.insert(category, all_jobs);
             }
 
             let component = Self {
@@ -98,7 +98,7 @@ mod marketplace {
             }
         }
 
-        pub fn add_markets(
+        pub fn add_category(
             &mut self,
             names: Vec<String>,
             minimum: Decimal,
@@ -106,26 +106,26 @@ mod marketplace {
             resource_address: ResourceAddress,
         ) {
             for name in names {
-                let market = MarketManager::new(
+                let category = Category::new(
                     name.clone(),
                     ContractKind::Project,
                     minimum,
                     fee,
                     resource_address,
                 );
-                self.projects.insert(name.clone(), market);
-                let market = MarketManager::new(
+                self.projects.insert(name.clone(), category);
+                let category = Category::new(
                     name.clone(),
                     ContractKind::Job,
                     minimum,
                     fee,
                     resource_address,
                 );
-                self.jobs.insert(name, market);
+                self.jobs.insert(name, category);
             }
         }
 
-        pub fn update_market(
+        pub fn update_category(
             &mut self,
             name: String,
             is_project: bool,
@@ -198,7 +198,6 @@ mod marketplace {
 
         pub fn add_project(
             &mut self,
-            name: String,
             project_address: ComponentAddress,
             proof: NonFungibleProof,
             fee_bucket: FungibleBucket,
@@ -206,6 +205,7 @@ mod marketplace {
             let project = Global::<ProjectContract>::from(project_address);
             let (
                 marketplaces,
+                category,
                 admin_badge,
                 contract_amount,
                 contract_resource,
@@ -214,29 +214,28 @@ mod marketplace {
             ) = project.data();
             proof.check(admin_badge);
             assert!(
-                marketplaces.contains_key(&Runtime::global_address()),
+                marketplaces.contains(&Runtime::global_address()),
                 "[Add Project]: Marketplace addresses must be the same"
             );
             assert!(is_joinable, "[Add Project]: Not joinable");
-            let market = self.projects.get(&name).unwrap();
+            let category = self.projects.get(&category).unwrap();
 
-            let market_fee = market.check_contract(contract_amount, contract_resource);
+            let category_fee = category.check_contract(contract_amount, contract_resource);
             assert!(
-                fee_bucket.amount() == market_fee,
+                fee_bucket.amount() == category_fee,
                 "[Add Project]: Missing fee"
             );
             assert!(
                 fee_bucket.resource_address() == XRD,
                 "[Add Project]: Fee must be XRD"
             );
-            market.list(contract_address);
-            drop(market);
+            category.list(contract_address);
+            drop(category);
             self.deposit(Bucket::from(fee_bucket));
         }
 
         pub fn add_job(
             &mut self,
-            name: String,
             job_address: ComponentAddress,
             proof: NonFungibleProof,
             fee_bucket: FungibleBucket,
@@ -244,6 +243,7 @@ mod marketplace {
             let job = Global::<JobContract>::from(job_address);
             let (
                 marketplaces,
+                category,
                 admin_badge,
                 contract_amount,
                 contract_resource,
@@ -252,20 +252,23 @@ mod marketplace {
             ) = job.data();
             proof.check(admin_badge);
             assert!(
-                marketplaces.contains_key(&Runtime::global_address()),
+                marketplaces.contains(&Runtime::global_address()),
                 "[Add Job]: Marketplace addresses must be the same"
             );
             assert!(is_joinable, "[Add Job]: Not joinable");
-            let market = self.jobs.get(&name).unwrap();
+            let category = self.jobs.get(&category).unwrap();
 
-            let market_fee = market.check_contract(contract_amount, contract_resource);
-            assert!(fee_bucket.amount() == market_fee, "[Add Job]: Missing fee");
+            let category_fee = category.check_contract(contract_amount, contract_resource);
+            assert!(
+                fee_bucket.amount() == category_fee,
+                "[Add Job]: Missing fee"
+            );
             assert!(
                 fee_bucket.resource_address() == XRD,
                 "[Add job]: Fee must be XRD"
             );
-            market.list(contract_address);
-            drop(market);
+            category.list(contract_address);
+            drop(category);
             self.deposit(Bucket::from(fee_bucket));
         }
     }

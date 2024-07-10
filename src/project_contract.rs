@@ -34,8 +34,9 @@ mod project_contract {
         contract_handle: String,
         contract_name: String,
         image: Url,
+        category: String,
         details: KeyValueStore<String, String>,
-        marketplaces: HashMap<ComponentAddress, Vec<String>>,
+        marketplaces: HashSet<ComponentAddress>,
 
         admin_badge: ResourceAddress,
         admin_handle: String,
@@ -73,6 +74,7 @@ mod project_contract {
             start_epoch: i64,
             end_epoch: i64,
             image: String,
+            category: String,
             details: HashMap<String, String>,
         ) -> (Global<ProjectContract>, NonFungibleBucket) {
             let (address_reservation, component_address) =
@@ -96,8 +98,9 @@ mod project_contract {
                 contract_handle,
                 contract_name,
                 image: Url::of(image),
+                category,
                 details: new_details,
-                marketplaces: HashMap::new(),
+                marketplaces: HashSet::new(),
 
                 admin_badge,
                 admin_handle,
@@ -425,26 +428,16 @@ mod project_contract {
             total
         }
 
-        pub fn list(&mut self, marketplace_address: ComponentAddress, market_name: String) {
+        pub fn list(&mut self, marketplace_address: ComponentAddress) {
             let marketplace = Global::<Marketplace>::from(marketplace_address);
             marketplace.check_contract(
-                market_name.to_owned(),
+                self.category.clone(),
                 ContractKind::Project,
                 self.amount,
                 self.funds.resource_address(),
             );
-            assert!(
-                self.marketplaces.len() <= MAX_MARKETPLACES,
-                "[List]: Reached max marketplaces"
-            );
-            if self.marketplaces.contains_key(&marketplace_address) {
-                let markets = self.marketplaces.get_mut(&marketplace_address).unwrap();
-                assert!(markets.len() <= MAX_MARKETS, "[List]: Reached max markets");
-                markets.push(market_name);
-            } else {
-                self.marketplaces
-                    .insert(marketplace_address, vec![market_name]);
-            }
+            assert!(self.marketplaces.is_empty(), "[List]: Already added");
+            self.marketplaces.insert(marketplace_address);
 
             self.list_epoch = Self::get_curr_epoch();
 
@@ -462,7 +455,8 @@ mod project_contract {
         pub fn data(
             &self,
         ) -> (
-            HashMap<ComponentAddress, Vec<String>>,
+            HashSet<ComponentAddress>,
+            String,
             ResourceAddress,
             Decimal,
             ResourceAddress,
@@ -471,6 +465,7 @@ mod project_contract {
         ) {
             (
                 self.marketplaces.clone(),
+                self.category.clone(),
                 self.admin_badge,
                 self.amount - self.rewarded,
                 self.funds.resource_address(),

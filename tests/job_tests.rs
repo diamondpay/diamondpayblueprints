@@ -37,6 +37,7 @@ fn create_job(
                 interval,
                 false,
                 "https://google.com",
+                "Blueprint",
                 HashMap::from([
                     ("description", "Test description goes here"),
                     ("social_urls", "https://google.com"),
@@ -253,19 +254,10 @@ fn job_list(
             manifest_args!(XRD, dec!(100)),
         )
         .take_from_worktop(XRD, dec!(100), "bucket1")
-        .call_method(
-            job_address,
-            "list",
-            manifest_args!(marketplace_address, "Test"),
-        )
+        .call_method(job_address, "list", manifest_args!(marketplace_address))
         .pop_from_auth_zone("proof")
         .call_method_with_name_lookup(marketplace_address, "add_job", |lookup| {
-            (
-                "Test",
-                job_address,
-                lookup.proof("proof"),
-                lookup.bucket("bucket1"),
-            )
+            (job_address, lookup.proof("proof"), lookup.bucket("bucket1"))
         })
         .call_method(
             member.account_address,
@@ -348,19 +340,19 @@ fn test() {
         &mut test_runner,
         app.admin.clone(),
         app.marketplace_address,
-        "add_markets",
+        "add_category",
         manifest_args!(vec!["Main"], dec!(2000), dec!(100), app.resource_address),
     );
     job_test(
         &mut test_runner,
         app.admin.clone(),
         app.marketplace_address,
-        "update_market",
+        "update_category",
         manifest_args!(
             "Main",
             false,
             dec!(3000),
-            HashMap::from([("description", "Test")])
+            HashMap::from([("description", "A description")])
         ),
     );
 
@@ -414,7 +406,7 @@ fn test() {
             app.admin.clone(),
             app.marketplace_address,
             "remove_contract",
-            manifest_args!(job_address, "Test", false),
+            manifest_args!(job_address, "Blueprint", false),
         );
     }
 
