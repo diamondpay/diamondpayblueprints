@@ -39,7 +39,6 @@ mod member {
         member_components: KeyValueStore<ComponentAddress, ()>,
         apps: KeyValueStore<String, TeamData>,
         resources: KeyValueStore<ResourceAddress, Vault>,
-        is_any_invite: bool,
         details: KeyValueStore<String, String>,
     }
 
@@ -81,7 +80,6 @@ mod member {
                 member_components: KeyValueStore::new(),
                 apps: KeyValueStore::<String, TeamData>::new_with_registered_type(),
                 resources: KeyValueStore::new(),
-                is_any_invite: false,
                 details: KeyValueStore::new(),
             }
             .instantiate()
@@ -210,18 +208,12 @@ mod member {
             self.apps.remove(&name);
         }
 
-        pub fn details(
-            &mut self,
-            details: HashMap<String, String>,
-            icon_url: String,
-            is_any_invite: bool,
-        ) {
+        pub fn details(&mut self, details: HashMap<String, String>, icon_url: String) {
             for (key, value) in details.iter() {
                 self.details.insert(key.to_owned(), value.to_owned());
             }
             self.badge_manager
                 .set_metadata("icon_url", Url::of(icon_url));
-            self.is_any_invite = is_any_invite;
         }
 
         pub fn get_badge(&self) -> ResourceAddress {
