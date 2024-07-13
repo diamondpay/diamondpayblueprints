@@ -39,7 +39,6 @@ pub struct TeamData {
     // name, icon_url, team_handle, subtitle, description
     // social_urls, link_urls, image_urls, video_ids
     pub details: HashMap<String, String>,
-    pub team_badge: Option<ResourceAddress>,
 }
 
 #[derive(ScryptoSbor, Clone)]

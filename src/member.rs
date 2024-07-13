@@ -37,7 +37,7 @@ mod member {
 
         member_badges: KeyValueStore<ResourceAddress, ()>,
         member_components: KeyValueStore<ComponentAddress, ()>,
-        apps: KeyValueStore<String, TeamData>,
+        teams: KeyValueStore<String, TeamData>,
         resources: KeyValueStore<ResourceAddress, Vault>,
         details: KeyValueStore<String, String>,
     }
@@ -78,7 +78,7 @@ mod member {
 
                 member_badges: KeyValueStore::new(),
                 member_components: KeyValueStore::new(),
-                apps: KeyValueStore::<String, TeamData>::new_with_registered_type(),
+                teams: KeyValueStore::<String, TeamData>::new_with_registered_type(),
                 resources: KeyValueStore::new(),
                 details: KeyValueStore::new(),
             }
@@ -176,36 +176,19 @@ mod member {
             }
         }
 
-        pub fn update_team(
-            &mut self,
-            name: String,
-            details: HashMap<String, String>,
-            team_badge: Option<ResourceAddress>,
-        ) {
-            if team_badge.is_some() {
-                // verify that badge is a Member badge
-                Self::badge_to_member(team_badge.unwrap());
-            }
-
-            let has_team = self.apps.get(&name).is_some();
+        pub fn update_team(&mut self, name: String, details: HashMap<String, String>) {
+            let has_team = self.teams.get(&name).is_some();
             if has_team {
                 // update while preserving insert order
-                let mut app = self.apps.get_mut(&name).unwrap();
-                app.details = details;
-                app.team_badge = team_badge;
+                let mut team = self.teams.get_mut(&name).unwrap();
+                team.details = details;
             } else {
-                self.apps.insert(
-                    name,
-                    TeamData {
-                        details,
-                        team_badge,
-                    },
-                );
+                self.teams.insert(name, TeamData { details });
             }
         }
 
         pub fn remove_team(&mut self, name: String) {
-            self.apps.remove(&name);
+            self.teams.remove(&name);
         }
 
         pub fn details(&mut self, details: HashMap<String, String>, icon_url: String) {

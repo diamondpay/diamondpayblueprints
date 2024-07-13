@@ -133,18 +133,13 @@ fn test() {
         manifest_args!(
             "App Name",
             HashMap::from([("description", "Test description goes here")]),
-            None::<ResourceAddress>
         ),
     );
     member_test(
         &mut test_runner,
         app.admin.clone(),
         "update_team",
-        manifest_args!(
-            "App Name",
-            HashMap::from([("description", "Updated here")]),
-            Some(app.member.resource_address)
-        ),
+        manifest_args!("App Name", HashMap::from([("description", "Updated here")]),),
     );
     member_test(
         &mut test_runner,
