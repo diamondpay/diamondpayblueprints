@@ -44,6 +44,7 @@ mod project {
         removed: HashMap<ResourceAddress, String>,
         signatures: HashSet<ResourceAddress>,
         funds: FungibleVault,
+        resource_address: ResourceAddress,
 
         start_epoch: i64,
         end_epoch: i64,
@@ -108,6 +109,7 @@ mod project {
                 removed: HashMap::new(),
                 signatures: HashSet::new(),
                 funds: FungibleVault::new(resource_address),
+                resource_address,
 
                 start_epoch,
                 end_epoch,

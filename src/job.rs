@@ -42,6 +42,7 @@ mod job {
         member_badges: HashMap<ResourceAddress, String>,
         signatures: HashSet<ResourceAddress>,
         funds: FungibleVault,
+        resource_address: ResourceAddress,
 
         vesting_schedule: VestingSchedule,
         reserved: FungibleVault,
@@ -104,6 +105,7 @@ mod job {
                 member_badges: HashMap::new(),
                 signatures: HashSet::new(),
                 funds: FungibleVault::new(resource_address),
+                resource_address,
 
                 vesting_schedule,
                 reserved: FungibleVault::new(resource_address),
