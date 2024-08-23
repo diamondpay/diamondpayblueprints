@@ -56,6 +56,7 @@ mod member {
                 "Badge used for contracts and authentication",
                 &rule!(require(global_caller(component_address))),
                 component_address,
+                &member_handle,
                 &icon_url,
                 vec![(
                     StringNonFungibleLocalId::new(&member_handle).unwrap(),
@@ -210,6 +211,7 @@ mod member {
             description: &str,
             access_rule: &AccessRule,
             member_address: ComponentAddress,
+            member_handle: &str,
             icon_url: &str,
             entries: Vec<(StringNonFungibleLocalId, D)>,
         ) -> NonFungibleBucket {
@@ -228,6 +230,7 @@ mod member {
                       "icon_url" => Url::of(icon_url), updatable;
                       "info_url" => Url::of(INFO_URL), locked;
                       MEMBER_ADDRESS => GlobalAddress::from(member_address), locked;
+                      "member_handle" => member_handle, locked;
                     }
                 })
                 .mint_roles(mint_roles! {
