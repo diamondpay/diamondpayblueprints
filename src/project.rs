@@ -55,7 +55,7 @@ mod project {
         objectives: HashMap<Decimal, HashMap<ResourceAddress, Decimal>>,
         completed: HashMap<Decimal, HashMap<ResourceAddress, Decimal>>,
         reserved: HashMap<ResourceAddress, FungibleVault>,
-        is_joinable: bool,
+        max_members: u8,
         is_cancelled: bool,
         cancelled_epoch: Decimal,
         created_epoch: Decimal,
@@ -74,6 +74,7 @@ mod project {
             resource_address: ResourceAddress,
             start_epoch: i64,
             end_epoch: i64,
+            max_members: u8,
             image: String,
             category: String,
             details: HashMap<String, String>,
@@ -120,7 +121,7 @@ mod project {
                 objectives: HashMap::new(),
                 completed: HashMap::new(),
                 reserved: HashMap::new(),
-                is_joinable: true,
+                max_members,
                 is_cancelled: false,
                 cancelled_epoch: dec!(0),
                 created_epoch: Self::get_curr_epoch(),
@@ -322,9 +323,9 @@ mod project {
             &mut self,
             start_epoch: i64,
             end_epoch: i64,
+            max_members: u8,
             image: String,
             details: HashMap<String, String>,
-            is_joinable: bool,
         ) {
             assert!(end_epoch >= start_epoch, "[Instantiate]: Invalid Dates");
             self.start_epoch = start_epoch;
@@ -333,7 +334,7 @@ mod project {
             for (key, value) in details.iter() {
                 self.details.insert(key.to_owned(), value.to_owned());
             }
-            self.is_joinable = is_joinable;
+            self.max_members = max_members;
 
             // CREATE TXS
             self.create_tx(
@@ -471,7 +472,7 @@ mod project {
                 self.admin_badge,
                 self.amount - self.rewarded,
                 self.funds.resource_address(),
-                self.is_joinable && !self.is_cancelled,
+                self.member_badges.len() < usize::from(self.max_members) && !self.is_cancelled,
                 Runtime::global_address(),
             )
         }
