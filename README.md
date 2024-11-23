@@ -3,7 +3,7 @@
 Pay anyone using Web3 contracts.
 Open source. No fees.
 
-#### Main Usecases of these Blueprints:
+#### Main Usecases:
 
 1. Escrow
    - hold funds in a public vault

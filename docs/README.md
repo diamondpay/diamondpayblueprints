@@ -1,4 +1,4 @@
-# Overview (WIP)
+# Overview
 
 ## What's Diamond Pay
 
